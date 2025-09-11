@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Reading App – Unlock</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Discourage indexing of ciphertext blobs -->
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <noscript>This site requires JavaScript.</noscript>
+
+  <div class="container">
+    <h1>Unlock</h1>
+    <form id="unlock-form" autocomplete="on">
+      <label>
+        Username or Email (optional)
+        <input type="text" id="username" name="username" autocomplete="username" />
+      </label>
+
+      <label>
+        Passphrase
+        <input
+          type="password"
+          id="passphrase"
+          name="current-password"
+          autocomplete="current-password"
+          required
+        />
+      </label>
+
+      <button type="submit">Unlock</button>
+      <p class="hint">Tip: Chrome can save this passphrase for this site.</p>
+    </form>
+
+    <div id="status" class="status"></div>
+    <div id="app" class="app" hidden></div>
+  </div>
+
+  <script type="module" src="./decrypt.js?v=3"></script>
+
+</body>
+</html>

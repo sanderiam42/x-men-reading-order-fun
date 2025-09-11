@@ -1,0 +1,7 @@
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; background: #f6f7f9; }
+.container { max-width: 720px; margin: 6rem auto; background: #fff; padding: 2rem; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.06); }
+label { display: block; margin: 1rem 0 .25rem; font-weight: 600; }
+input { width: 100%; padding: .75rem 1rem; border: 1px solid #dcdfe4; border-radius: 12px; }
+button { margin-top: 1rem; padding: .75rem 1.25rem; border: 0; border-radius: 12px; font-weight: 700; cursor: pointer; }
+.status { margin-top: 1rem; color: #c00; }
+.app { margin-top: 2rem; }
