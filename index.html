@@ -38,7 +38,31 @@
     <div id="app" class="app" hidden></div>
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.2.1/firebase-app-check.js"></script>
+  <script>
+    // Firebase configuration - inlined from firebase-app-config
+    const firebaseConfig = /***REPLACE_WITH_CONTENTS_OF_file_firebase-app-config***/;
+    
+    // Initialize Firebase
+    const app = firebase.initializeApp(firebaseConfig);
+    
+    // reCAPTCHA v3 site key - inlined from reCAPTCHA-v3-site-key
+    const RECAPTCHA_V3_SITE_KEY = /***REPLACE_WITH_CONTENTS_OF_file_reCAPTCHA-v3-site-key***/;
+    
+    // Activate App Check
+    const appCheck = firebase.appCheck();
+    appCheck.activate(RECAPTCHA_V3_SITE_KEY, true);
+    
+    // Set dynamic function base URL
+    window.FB_FUNCTION_BASE = "https://us-central1-" + firebaseConfig.projectId + ".cloudfunctions.net/state";
+  </script>
   <script type="module" src="./decrypt.js?v=3"></script>
+  <script type="module">
+    import { saveState as ZK_SAVE_STATE, loadState as ZK_LOAD_STATE } from "./state-sync.js";
+    window.ZK_SAVE_STATE = ZK_SAVE_STATE;
+    window.ZK_LOAD_STATE = ZK_LOAD_STATE;
+  </script>
 
 </body>
 </html>

@@ -1,6 +1,23 @@
 const $ = s => document.querySelector(s);
 const b64ToU8 = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
 
+// Notification system for cloud sync status
+function showNotification(message, type = 'info') {
+  const status = $("#status");
+  if (status) {
+    status.textContent = message;
+    status.className = `status ${type}`;
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+      if (status.textContent === message) {
+        status.textContent = '';
+        status.className = 'status';
+      }
+    }, 5000);
+  }
+}
+
 async function deriveKey(passphrase, salt) {
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
@@ -86,6 +103,16 @@ async function unlock(passphrase) {
     //    which we need to replace with the actual payload:
     console.log("Processing HTML...");
     const app = $("#app");
+    
+    // Store passphrase temporarily in sessionStorage for cloud sync
+    // This is more secure than global scope but still not ideal
+    sessionStorage.setItem('zk_passphrase_temp', passphrase);
+    
+    // Clean up passphrase on page unload for security
+    window.addEventListener('beforeunload', () => {
+      sessionStorage.removeItem('zk_passphrase_temp');
+    });
+    
     // Replace the placeholder with the actual payload
     const processedHtml = html.replace(
       /const EXTRACTED_PAYLOAD = \{\s*<!-- PAYLOAD_WILL_BE_INJECTED_BY_BOOTSTRAP -->/,
@@ -111,6 +138,39 @@ async function unlock(passphrase) {
     if (unlockForm) unlockForm.style.display = 'none';
     if (unlockHeading) unlockHeading.style.display = 'none';
     if (hint) hint.style.display = 'none';
+    
+    // Load cloud state if available
+    if (window.ZK_LOAD_STATE) {
+      try {
+        console.log("Loading cloud state...");
+        const { state, error } = await window.ZK_LOAD_STATE(passphrase);
+        
+        if (state) {
+          console.log("Cloud state loaded successfully");
+          // Apply cloud state to localStorage if it's newer
+          const localState = JSON.parse(localStorage.getItem(`readingState:${window.EXTRACTED_PAYLOAD?.listId || 'locg-unknown'}:v1`) || '{}');
+          const cloudTimestamp = state._cloudTimestamp || 0;
+          const localTimestamp = localState._lastModified || 0;
+          
+          if (cloudTimestamp > localTimestamp) {
+            console.log("Cloud state is newer, applying to localStorage");
+            localStorage.setItem(`readingState:${window.EXTRACTED_PAYLOAD?.listId || 'locg-unknown'}:v1`, JSON.stringify(state));
+            // Trigger a page reload to apply the new state
+            window.location.reload();
+            return;
+          }
+        } else if (error === "network") {
+          console.warn("Cloud sync unavailable; continuing with local data");
+          showNotification("Cloud sync unavailable; continuing with local data.", "warning");
+        } else if (error === "integrity") {
+          console.warn("Cloud version corrupted; using local data");
+          showNotification("Cloud version corrupted; using local data.", "warning");
+        }
+      } catch (error) {
+        console.error("Failed to load cloud state:", error);
+        showNotification("Failed to load cloud state; using local data.", "error");
+      }
+    }
     
     console.log("Unlock process completed successfully!");
   } catch (error) {
