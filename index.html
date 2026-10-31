@@ -1,68 +1,5171 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Reading App – Unlock</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Discourage indexing of ciphertext blobs -->
-  <meta name="robots" content="noindex,nofollow" />
-  <link rel="stylesheet" href="./styles.css" />
+<meta charset="utf-8" />
+<title>X-Men Reading Tracker (Offline SPA)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { --fg:#111; --muted:#666; --line:#ddd; --bg:#fff; --readBg:#f6f6f6; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; color: var(--fg); background: var(--bg); }
+  h1 { margin: 0 0 12px; font-size: 1.3rem; }
+  .toolbar { display:flex; gap:8px; margin: 0 0 16px; flex-wrap: wrap; }
+  button, label.buttonlike { border:1px solid var(--line); background:#fafafa; padding:6px 10px; border-radius:8px; cursor:pointer; }
+  input[type="file"] { display:none; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid var(--line); padding: 8px; vertical-align: top; }
+  th { text-align: left; background: #f7f7f7; position: sticky; top: 0; }
+  td.num { text-align: right; white-space: nowrap; width: 4ch; }
+  td.cover img { max-width: 110px; height: auto; display: block; }
+  tr.read { background: var(--readBg); color: var(--muted); }
+  tr.read a { color: var(--muted); }
+  .note { color: var(--muted); font-size:.9rem; margin-top:8px; }
+  
+  /* Custom checkbox styling */
+  .custom-checkbox {
+    position: relative;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border: 2px solid var(--line);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .custom-checkbox:hover {
+    border-color: #999;
+    background: #f8f8f8;
+  }
+  
+  .custom-checkbox.checked {
+    background: #4CAF50;
+    border-color: #4CAF50;
+  }
+  
+  .custom-checkbox.checked::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 13px;
+    font-weight: bold;
+    line-height: 1;
+  }
+
+  .custom-checkbox input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+  }
+  
+  /* IC (In Collection) row highlight */
+  tr.in-collection { background: #EDFFF0; }
+
+  /* IC checkbox styling */
+  .ic-checkbox {
+    position: relative;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border: 2px solid var(--line);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .ic-checkbox:hover { border-color: #999; background: #f8f8f8; }
+  .ic-checkbox.checked {
+    background: #EDFFF0;
+    border-color: #6db87a;
+  }
+  .ic-checkbox.checked::after {
+    content: '✓';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: #4a8a55;
+    font-size: 13px;
+    font-weight: bold;
+    line-height: 1;
+  }
+  .ic-checkbox input[type="checkbox"] {
+    position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0;
+  }
+  .ic-checkbox.disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+
+  /* Narrow checkbox columns so IC+Read share roughly the same space as Read alone */
+  td.chk { width: 20px; padding: 6px 4px; text-align: center; }
+  th.chk { padding: 8px 4px; text-align: center; }
+
+  /* Make checked rows much darker and smaller */
+  tr.read { background: #d0d0d0; color: #444; }
+  tr.read a { color: #444; }
+
+  /* Shrink checked row images to 30% size */
+  tr.read .cover img { max-width: 33px; }
+
+  /* Range start indicator */
+  tr.range-start { background: #f0f8ff; }
+  
+  /* Tab bar */
+  .tab-bar { display: flex; gap: 4px; border-bottom: 2px solid var(--line); padding: 8px 0 0; margin-bottom: 0; }
+  .tab {
+    padding: 7px 16px;
+    border: 1px solid var(--line);
+    border-bottom: none;
+    background: #f0f0f0;
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    font-size: 0.9rem;
+    color: var(--muted);
+    position: relative;
+    bottom: -2px;
+    white-space: nowrap;
+  }
+  .tab.active { background: var(--bg); color: var(--fg); font-weight: 600; border-bottom: 2px solid var(--bg); }
+  .tab:hover:not(.active) { background: #e8e8e8; }
+
+  /* Back-to-top button */
+  #backToTopBtn {
+    display: none;
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    z-index: 100;
+    padding: 8px 14px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 0.85rem;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  #backToTopBtn:hover { background: #f0f0f0; }
+
+  /* Pin toolbar and table header to top */
+  .toolbar { position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 8px 0; margin: 0 0 0; }
+  th { position: sticky; top: 52px; z-index: 9; }
+</style>
 </head>
 <body>
-  <noscript>This site requires JavaScript.</noscript>
-
-  <div class="container">
-    <h1>Unlock</h1>
-    <form id="unlock-form" autocomplete="on">
-      <label>
-        Username or Email (optional)
-        <input type="text" id="username" name="username" autocomplete="username" />
-      </label>
-
-      <label>
-        Passphrase
-        <input
-          type="password"
-          id="passphrase"
-          name="current-password"
-          autocomplete="current-password"
-          required
-        />
-      </label>
-
-      <button type="submit">Unlock</button>
-      <p class="hint">Tip: Chrome can save this passphrase for this site.</p>
-    </form>
-
-    <div id="status" class="status"></div>
-    <div id="app" class="app" hidden></div>
+  <h1>X-Men Reading Tracker</h1>
+  <div class="tab-bar" id="tabBar"></div>
+  <button id="backToTopBtn">↑ Tabs</button>
+  <div class="toolbar">
+    <button id="exportBtn">Export state</button>
+    <label class="buttonlike" for="importFile">Import state</label>
+    <input id="importFile" type="file" accept="application/json" />
+    <button id="clearBtn" title="Clears read/unread state for all tabs">Clear all state</button>
+    <button id="skipToNextBtn" title="Skip to the first unread comic">Skip to Next Unread</button>
   </div>
+  <div class="note" style="display: none;">Paste new scraped JSON into the code block below and reload. Read rows are greyed out (not hidden). Unchecking triggers a warning.</div>
 
-  <script src="https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/12.2.1/firebase-app-check.js"></script>
-  <script>
-    // Firebase configuration - inlined from firebase-app-config
-    const firebaseConfig = /***REPLACE_WITH_CONTENTS_OF_file_firebase-app-config***/;
-    
-    // Initialize Firebase
-    const app = firebase.initializeApp(firebaseConfig);
-    
-    // reCAPTCHA v3 site key - inlined from reCAPTCHA-v3-site-key
-    const RECAPTCHA_V3_SITE_KEY = /***REPLACE_WITH_CONTENTS_OF_file_reCAPTCHA-v3-site-key***/;
-    
-    // Activate App Check
-    const appCheck = firebase.appCheck();
-    appCheck.activate(RECAPTCHA_V3_SITE_KEY, true);
-    
-    // Set dynamic function base URL
-    window.FB_FUNCTION_BASE = "https://us-central1-" + firebaseConfig.projectId + ".cloudfunctions.net/state";
-  </script>
-  <script type="module" src="./decrypt.js?v=3"></script>
-  <script type="module">
-    import { saveState as ZK_SAVE_STATE, loadState as ZK_LOAD_STATE } from "./state-sync.js";
-    window.ZK_SAVE_STATE = ZK_SAVE_STATE;
-    window.ZK_LOAD_STATE = ZK_LOAD_STATE;
-  </script>
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th>#</th><th class="chk">IC</th><th class="chk">Read</th><th>Cover</th><th>Title</th><th>Publisher</th><th>Date</th><th>Link</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
+<script>
+/* === LIST DATA — managed by scrape/scrape.py ===
+   Do not edit manually. Run the scraper to update.
+*/
+const ALL_LISTS = [
+  {
+    "listId": "locg-32498",
+    "label": "From the Ashes (2024\u201325)",
+    "updatedAt": "2026-04-07T21:34:16.684133+00:00",
+    "items": [
+      {
+        "id": "8035293",
+        "order": 1,
+        "title": "X-Men #1",
+        "series": "X-Men",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8035293/x-men-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8035293.jpg"
+      },
+      {
+        "id": "5320670",
+        "order": 2,
+        "title": "Phoenix #1",
+        "series": "Phoenix",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5320670/phoenix-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5320670.jpg"
+      },
+      {
+        "id": "8167386",
+        "order": 3,
+        "title": "NYX #1",
+        "series": "NYX",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8167386/nyx-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8167386.jpg"
+      },
+      {
+        "id": "6500120",
+        "order": 4,
+        "title": "X-Force #1",
+        "series": "X-Force",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6500120/x-force-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6500120.jpg"
+      },
+      {
+        "id": "7495021",
+        "order": 5,
+        "title": "Uncanny X-Men #1",
+        "series": "Uncanny X-Men",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7495021/uncanny-x-men-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7495021.jpg"
+      },
+      {
+        "id": "6567048",
+        "order": 6,
+        "title": "The Avengers #17",
+        "series": "The Avengers",
+        "issue": "17",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6567048/the-avengers-17",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6567048.jpg"
+      },
+      {
+        "id": "7904463",
+        "order": 7,
+        "title": "X-Men #2",
+        "series": "X-Men",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7904463/x-men-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7904463.jpg"
+      },
+      {
+        "id": "5709501",
+        "order": 8,
+        "title": "X-Factor #1",
+        "series": "X-Factor",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5709501/x-factor-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5709501.jpg"
+      },
+      {
+        "id": "8301245",
+        "order": 9,
+        "title": "Phoenix #2",
+        "series": "Phoenix",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8301245/phoenix-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8301245.jpg"
+      },
+      {
+        "id": "3573673",
+        "order": 10,
+        "title": "NYX #2",
+        "series": "NYX",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3573673/nyx-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3573673.jpg"
+      },
+      {
+        "id": "2681043",
+        "order": 11,
+        "title": "X-Force #2",
+        "series": "X-Force",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2681043/x-force-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2681043.jpg"
+      },
+      {
+        "id": "5572755",
+        "order": 12,
+        "title": "Wolverine #1",
+        "series": "Wolverine",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5572755/wolverine-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5572755.jpg"
+      },
+      {
+        "id": "7749267",
+        "order": 13,
+        "title": "Uncanny X-Men #2",
+        "series": "Uncanny X-Men",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7749267/uncanny-x-men-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7749267.jpg"
+      },
+      {
+        "id": "7005412",
+        "order": 14,
+        "title": "X-Men #3",
+        "series": "X-Men",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7005412/x-men-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7005412.jpg"
+      },
+      {
+        "id": "7647105",
+        "order": 15,
+        "title": "Exceptional X-Men #1",
+        "series": "Exceptional X-Men",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7647105/exceptional-x-men-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7647105.jpg"
+      },
+      {
+        "id": "4867083",
+        "order": 16,
+        "title": "Dazzler #1",
+        "series": "Dazzler",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4867083/dazzler-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4867083.jpg"
+      },
+      {
+        "id": "1603319",
+        "order": 17,
+        "title": "X-Men #4",
+        "series": "X-Men",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1603319/x-men-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1603319.jpg"
+      },
+      {
+        "id": "7903751",
+        "order": 18,
+        "title": "X-Factor #2",
+        "series": "X-Factor",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7903751/x-factor-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7903751.jpg"
+      },
+      {
+        "id": "3160029",
+        "order": 19,
+        "title": "The Avengers #18",
+        "series": "The Avengers",
+        "issue": "18",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3160029/the-avengers-18",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3160029.jpg"
+      },
+      {
+        "id": "9263166",
+        "order": 20,
+        "title": "Phoenix #3",
+        "series": "Phoenix",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9263166/phoenix-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9263166.jpg"
+      },
+      {
+        "id": "9836894",
+        "order": 21,
+        "title": "X-Force #3",
+        "series": "X-Force",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9836894/x-force-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9836894.jpg"
+      },
+      {
+        "id": "4157147",
+        "order": 22,
+        "title": "Uncanny X-Men #3",
+        "series": "Uncanny X-Men",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4157147/uncanny-x-men-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4157147.jpg"
+      },
+      {
+        "id": "9036740",
+        "order": 23,
+        "title": "NYX #3",
+        "series": "NYX",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9036740/nyx-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9036740.jpg"
+      },
+      {
+        "id": "9477785",
+        "order": 24,
+        "title": "Storm #1",
+        "series": "Storm",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9477785/storm-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9477785.jpg"
+      },
+      {
+        "id": "5808844",
+        "order": 25,
+        "title": "X-Men #5",
+        "series": "X-Men",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5808844/x-men-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5808844.jpg"
+      },
+      {
+        "id": "4297159",
+        "order": 26,
+        "title": "Sentinels #1",
+        "series": "Sentinels",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4297159/sentinels-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4297159.jpg"
+      },
+      {
+        "id": "8468084",
+        "order": 27,
+        "title": "X-Force #4",
+        "series": "X-Force",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8468084/x-force-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8468084.jpg"
+      },
+      {
+        "id": "1076916",
+        "order": 28,
+        "title": "Phoenix #4",
+        "series": "Phoenix",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1076916/phoenix-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1076916.jpg"
+      },
+      {
+        "id": "2016575",
+        "order": 29,
+        "title": "Exceptional X-Men #2",
+        "series": "Exceptional X-Men",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2016575/exceptional-x-men-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2016575.jpg"
+      },
+      {
+        "id": "2642520",
+        "order": 30,
+        "title": "Wolverine #2",
+        "series": "Wolverine",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2642520/wolverine-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2642520.jpg"
+      },
+      {
+        "id": "9253972",
+        "order": 31,
+        "title": "Mystique #1",
+        "series": "Mystique",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9253972/mystique-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9253972.jpg"
+      },
+      {
+        "id": "3197884",
+        "order": 32,
+        "title": "Uncanny X-Men #4",
+        "series": "Uncanny X-Men",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3197884/uncanny-x-men-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3197884.jpg"
+      },
+      {
+        "id": "4752984",
+        "order": 33,
+        "title": "X-Factor #3",
+        "series": "X-Factor",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4752984/x-factor-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4752984.jpg"
+      },
+      {
+        "id": "6919766",
+        "order": 34,
+        "title": "Dazzler #2",
+        "series": "Dazzler",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6919766/dazzler-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6919766.jpg"
+      },
+      {
+        "id": "5256076",
+        "order": 35,
+        "title": "X-Men #6",
+        "series": "X-Men",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5256076/x-men-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5256076.jpg"
+      },
+      {
+        "id": "5366775",
+        "order": 36,
+        "title": "NYX #4",
+        "series": "NYX",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5366775/nyx-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5366775.jpg"
+      },
+      {
+        "id": "1931750",
+        "order": 37,
+        "title": "X-Men #7",
+        "series": "X-Men",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1931750/x-men-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1931750.jpg"
+      },
+      {
+        "id": "2190822",
+        "order": 38,
+        "title": "X-Factor #4",
+        "series": "X-Factor",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2190822/x-factor-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2190822.jpg"
+      },
+      {
+        "id": "8447719",
+        "order": 39,
+        "title": "X-Force #5",
+        "series": "X-Force",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8447719/x-force-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8447719.jpg"
+      },
+      {
+        "id": "8772396",
+        "order": 40,
+        "title": "Uncanny X-Men #5",
+        "series": "Uncanny X-Men",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8772396/uncanny-x-men-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8772396.jpg"
+      },
+      {
+        "id": "8945912",
+        "order": 41,
+        "title": "Psylocke #1",
+        "series": "Psylocke",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8945912/psylocke-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8945912.jpg"
+      },
+      {
+        "id": "1895549",
+        "order": 42,
+        "title": "NYX #5",
+        "series": "NYX",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1895549/nyx-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1895549.jpg"
+      },
+      {
+        "id": "4437657",
+        "order": 43,
+        "title": "Phoenix #5",
+        "series": "Phoenix",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4437657/phoenix-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4437657.jpg"
+      },
+      {
+        "id": "2737943",
+        "order": 44,
+        "title": "Storm #2",
+        "series": "Storm",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2737943/storm-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2737943.jpg"
+      },
+      {
+        "id": "3094773",
+        "order": 45,
+        "title": "Sentinels #2",
+        "series": "Sentinels",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3094773/sentinels-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3094773.jpg"
+      },
+      {
+        "id": "4112095",
+        "order": 46,
+        "title": "Exceptional X-Men #3",
+        "series": "Exceptional X-Men",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4112095/exceptional-x-men-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4112095.jpg"
+      },
+      {
+        "id": "8389537",
+        "order": 47,
+        "title": "Wolverine #3",
+        "series": "Wolverine",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8389537/wolverine-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8389537.jpg"
+      },
+      {
+        "id": "4477483",
+        "order": 48,
+        "title": "Mystique #2",
+        "series": "Mystique",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4477483/mystique-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4477483.jpg"
+      },
+      {
+        "id": "5901798",
+        "order": 49,
+        "title": "Uncanny X-Men #6",
+        "series": "Uncanny X-Men",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5901798/uncanny-x-men-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5901798.jpg"
+      },
+      {
+        "id": "1156788",
+        "order": 50,
+        "title": "Dazzler #3",
+        "series": "Dazzler",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1156788/dazzler-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1156788.jpg"
+      },
+      {
+        "id": "1955029",
+        "order": 51,
+        "title": "X-Men #8",
+        "series": "X-Men",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1955029/x-men-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1955029.jpg"
+      },
+      {
+        "id": "3209880",
+        "order": 52,
+        "title": "X-Force #6",
+        "series": "X-Force",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3209880/x-force-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3209880.jpg"
+      },
+      {
+        "id": "5472784",
+        "order": 53,
+        "title": "NYX #6",
+        "series": "NYX",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5472784/nyx-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5472784.jpg"
+      },
+      {
+        "id": "5270122",
+        "order": 54,
+        "title": "Deadpool / Wolverine: Weapon X-Traction #1",
+        "series": "Deadpool / Wolverine: Weapon X-Traction",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5270122/deadpool-wolverine-weapon-x-traction-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5270122.jpg"
+      },
+      {
+        "id": "2111196",
+        "order": 55,
+        "title": "Wolverine #4",
+        "series": "Wolverine",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2111196/wolverine-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2111196.jpg"
+      },
+      {
+        "id": "4333710",
+        "order": 56,
+        "title": "Laura Kinney: Wolverine #1",
+        "series": "Laura Kinney: Wolverine",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4333710/laura-kinney-wolverine-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4333710.jpg"
+      },
+      {
+        "id": "2406324",
+        "order": 57,
+        "title": "Uncanny X-Men #7",
+        "series": "Uncanny X-Men",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2406324/uncanny-x-men-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2406324.jpg"
+      },
+      {
+        "id": "8659625",
+        "order": 58,
+        "title": "Phoenix #6",
+        "series": "Phoenix",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8659625/phoenix-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8659625.jpg"
+      },
+      {
+        "id": "3794324",
+        "order": 59,
+        "title": "X-Factor #5",
+        "series": "X-Factor",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3794324/x-factor-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3794324.jpg"
+      },
+      {
+        "id": "9776044",
+        "order": 60,
+        "title": "Dazzler #4",
+        "series": "Dazzler",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9776044/dazzler-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9776044.jpg"
+      },
+      {
+        "id": "9616176",
+        "order": 61,
+        "title": "Storm #3",
+        "series": "Storm",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9616176/storm-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9616176.jpg"
+      },
+      {
+        "id": "8310573",
+        "order": 62,
+        "title": "Sentinels #3",
+        "series": "Sentinels",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8310573/sentinels-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8310573.jpg"
+      },
+      {
+        "id": "3264272",
+        "order": 63,
+        "title": "Hellverine #1",
+        "series": "Hellverine",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3264272/hellverine-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3264272.jpg"
+      },
+      {
+        "id": "4263448",
+        "order": 64,
+        "title": "Hellverine #2",
+        "series": "Hellverine",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4263448/hellverine-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4263448.jpg"
+      },
+      {
+        "id": "2091655",
+        "order": 65,
+        "title": "Hellverine #3",
+        "series": "Hellverine",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2091655/hellverine-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2091655.jpg"
+      },
+      {
+        "id": "7932096",
+        "order": 66,
+        "title": "Hellverine #4",
+        "series": "Hellverine",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7932096/hellverine-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7932096.jpg"
+      },
+      {
+        "id": "9997372",
+        "order": 67,
+        "title": "Hellverine #1",
+        "series": "Hellverine",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9997372/hellverine-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9997372.jpg"
+      },
+      {
+        "id": "7857296",
+        "order": 68,
+        "title": "Psylocke #2",
+        "series": "Psylocke",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7857296/psylocke-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7857296.jpg"
+      },
+      {
+        "id": "7780532",
+        "order": 69,
+        "title": "Mystique #3",
+        "series": "Mystique",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7780532/mystique-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7780532.jpg"
+      },
+      {
+        "id": "1418148",
+        "order": 70,
+        "title": "Exceptional X-Men #4",
+        "series": "Exceptional X-Men",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1418148/exceptional-x-men-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1418148.jpg"
+      },
+      {
+        "id": "3801274",
+        "order": 71,
+        "title": "Timeslide #1",
+        "series": "Timeslide",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3801274/timeslide-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3801274.jpg"
+      },
+      {
+        "id": "1629244",
+        "order": 72,
+        "title": "X-Men #9",
+        "series": "X-Men",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1629244/x-men-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1629244.jpg"
+      },
+      {
+        "id": "2664593",
+        "order": 73,
+        "title": "X-Force #7",
+        "series": "X-Force",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2664593/x-force-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2664593.jpg"
+      },
+      {
+        "id": "8956686",
+        "order": 74,
+        "title": "Cable: Love and Chrome #1",
+        "series": "Cable: Love and Chrome",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8956686/cable-love-and-chrome-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8956686.jpg"
+      },
+      {
+        "id": "5816229",
+        "order": 75,
+        "title": "Deadpool / Wolverine #1",
+        "series": "Deadpool / Wolverine",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5816229/deadpool-wolverine-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5816229.jpg"
+      },
+      {
+        "id": "4469878",
+        "order": 76,
+        "title": "X-Factor #6",
+        "series": "X-Factor",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4469878/x-factor-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4469878.jpg"
+      },
+      {
+        "id": "4636322",
+        "order": 77,
+        "title": "Sentinels #4",
+        "series": "Sentinels",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4636322/sentinels-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4636322.jpg"
+      },
+      {
+        "id": "3981681",
+        "order": 78,
+        "title": "Magik #1",
+        "series": "Magik",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3981681/magik-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3981681.jpg"
+      },
+      {
+        "id": "1696960",
+        "order": 79,
+        "title": "Uncanny X-Men #8",
+        "series": "Uncanny X-Men",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1696960/uncanny-x-men-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1696960.jpg"
+      },
+      {
+        "id": "7059600",
+        "order": 80,
+        "title": "NYX #7",
+        "series": "NYX",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7059600/nyx-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7059600.jpg"
+      },
+      {
+        "id": "7448483",
+        "order": 81,
+        "title": "Wolverine #5",
+        "series": "Wolverine",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7448483/wolverine-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7448483.jpg"
+      },
+      {
+        "id": "4116580",
+        "order": 82,
+        "title": "Exceptional X-Men #5",
+        "series": "Exceptional X-Men",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4116580/exceptional-x-men-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4116580.jpg"
+      },
+      {
+        "id": "5614511",
+        "order": 83,
+        "title": "Storm #4",
+        "series": "Storm",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5614511/storm-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5614511.jpg"
+      },
+      {
+        "id": "1378961",
+        "order": 84,
+        "title": "Laura Kinney: Wolverine #2",
+        "series": "Laura Kinney: Wolverine",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1378961/laura-kinney-wolverine-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1378961.jpg"
+      },
+      {
+        "id": "5167079",
+        "order": 85,
+        "title": "Mystique #4",
+        "series": "Mystique",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5167079/mystique-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5167079.jpg"
+      },
+      {
+        "id": "7612823",
+        "order": 86,
+        "title": "Hellverine #2",
+        "series": "Hellverine",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7612823/hellverine-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7612823.jpg"
+      },
+      {
+        "id": "4817250",
+        "order": 87,
+        "title": "X-Men: Xavier's Secret #1",
+        "series": "X-Men: Xavier's Secret",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4817250/x-men-xaviers-secret-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4817250.jpg"
+      },
+      {
+        "id": "9831461",
+        "order": 88,
+        "title": "Phoenix #7",
+        "series": "Phoenix",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9831461/phoenix-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9831461.jpg"
+      },
+      {
+        "id": "6431613",
+        "order": 89,
+        "title": "Uncanny X-Men #9",
+        "series": "Uncanny X-Men",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6431613/uncanny-x-men-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6431613.jpg"
+      },
+      {
+        "id": "1565273",
+        "order": 90,
+        "title": "X-Men #10",
+        "series": "X-Men",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1565273/x-men-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1565273.jpg"
+      },
+      {
+        "id": "3366368",
+        "order": 91,
+        "title": "Psylocke #3",
+        "series": "Psylocke",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3366368/psylocke-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3366368.jpg"
+      },
+      {
+        "id": "5522300",
+        "order": 92,
+        "title": "Phoenix #8",
+        "series": "Phoenix",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5522300/phoenix-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5522300.jpg"
+      },
+      {
+        "id": "1443714",
+        "order": 93,
+        "title": "Wolverine #6",
+        "series": "Wolverine",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1443714/wolverine-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1443714.jpg"
+      },
+      {
+        "id": "8117703",
+        "order": 94,
+        "title": "X-Men #11",
+        "series": "X-Men",
+        "issue": "11",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8117703/x-men-11",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8117703.jpg"
+      },
+      {
+        "id": "3185585",
+        "order": 95,
+        "title": "Psylocke #4",
+        "series": "Psylocke",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3185585/psylocke-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3185585.jpg"
+      },
+      {
+        "id": "6443796",
+        "order": 96,
+        "title": "Magik #2",
+        "series": "Magik",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6443796/magik-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6443796.jpg"
+      },
+      {
+        "id": "9966057",
+        "order": 97,
+        "title": "Cable: Love and Chrome #2",
+        "series": "Cable: Love and Chrome",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9966057/cable-love-and-chrome-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9966057.jpg"
+      },
+      {
+        "id": "6206655",
+        "order": 98,
+        "title": "Deadpool / Wolverine #2",
+        "series": "Deadpool / Wolverine",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6206655/deadpool-wolverine-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6206655.jpg"
+      },
+      {
+        "id": "6639596",
+        "order": 99,
+        "title": "Uncanny X-Men #10",
+        "series": "Uncanny X-Men",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6639596/uncanny-x-men-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6639596.jpg"
+      },
+      {
+        "id": "8852463",
+        "order": 100,
+        "title": "NYX #8",
+        "series": "NYX",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8852463/nyx-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8852463.jpg"
+      },
+      {
+        "id": "3209893",
+        "order": 101,
+        "title": "Storm #5",
+        "series": "Storm",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3209893/storm-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3209893.jpg"
+      },
+      {
+        "id": "6923908",
+        "order": 102,
+        "title": "X-Force #8",
+        "series": "X-Force",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6923908/x-force-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6923908.jpg"
+      },
+      {
+        "id": "6663390",
+        "order": 103,
+        "title": "X-Factor #7",
+        "series": "X-Factor",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6663390/x-factor-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6663390.jpg"
+      },
+      {
+        "id": "7125707",
+        "order": 104,
+        "title": "Mystique #5",
+        "series": "Mystique",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7125707/mystique-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7125707.jpg"
+      },
+      {
+        "id": "8220160",
+        "order": 105,
+        "title": "Laura Kinney: Wolverine #3",
+        "series": "Laura Kinney: Wolverine",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8220160/laura-kinney-wolverine-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8220160.jpg"
+      },
+      {
+        "id": "2718864",
+        "order": 106,
+        "title": "Exceptional X-Men #6",
+        "series": "Exceptional X-Men",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2718864/exceptional-x-men-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2718864.jpg"
+      },
+      {
+        "id": "5539923",
+        "order": 107,
+        "title": "Weapon X-Men #1",
+        "series": "Weapon X-Men",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5539923/weapon-x-men-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5539923.jpg"
+      },
+      {
+        "id": "6238330",
+        "order": 108,
+        "title": "Sentinels #5",
+        "series": "Sentinels",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6238330/sentinels-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6238330.jpg"
+      },
+      {
+        "id": "2338730",
+        "order": 109,
+        "title": "Hellverine #3",
+        "series": "Hellverine",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2338730/hellverine-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2338730.jpg"
+      },
+      {
+        "id": "2246697",
+        "order": 110,
+        "title": "X-Men #12",
+        "series": "X-Men",
+        "issue": "12",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2246697/x-men-12",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2246697.jpg"
+      },
+      {
+        "id": "1847994",
+        "order": 111,
+        "title": "Uncanny X-Men #11",
+        "series": "Uncanny X-Men",
+        "issue": "11",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1847994/uncanny-x-men-11",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1847994.jpg"
+      },
+      {
+        "id": "9895829",
+        "order": 112,
+        "title": "NYX #9",
+        "series": "NYX",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9895829/nyx-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9895829.jpg"
+      },
+      {
+        "id": "8790387",
+        "order": 113,
+        "title": "Storm #6",
+        "series": "Storm",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8790387/storm-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8790387.jpg"
+      },
+      {
+        "id": "5077614",
+        "order": 114,
+        "title": "Wolverine #7",
+        "series": "Wolverine",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5077614/wolverine-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5077614.jpg"
+      },
+      {
+        "id": "8191372",
+        "order": 115,
+        "title": "X-Men #13",
+        "series": "X-Men",
+        "issue": "13",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8191372/x-men-13",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8191372.jpg"
+      },
+      {
+        "id": "8862357",
+        "order": 116,
+        "title": "X-Factor #8",
+        "series": "X-Factor",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8862357/x-factor-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8862357.jpg"
+      },
+      {
+        "id": "7359824",
+        "order": 117,
+        "title": "Hellverine #4",
+        "series": "Hellverine",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7359824/hellverine-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7359824.jpg"
+      },
+      {
+        "id": "1021118",
+        "order": 118,
+        "title": "Phoenix #9",
+        "series": "Phoenix",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1021118/phoenix-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1021118.jpg"
+      },
+      {
+        "id": "1906495",
+        "order": 119,
+        "title": "X-Force #9",
+        "series": "X-Force",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1906495/x-force-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1906495.jpg"
+      },
+      {
+        "id": "8099494",
+        "order": 120,
+        "title": "Exceptional X-Men #7",
+        "series": "Exceptional X-Men",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8099494/exceptional-x-men-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8099494.jpg"
+      },
+      {
+        "id": "9500943",
+        "order": 121,
+        "title": "Psylocke #5",
+        "series": "Psylocke",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9500943/psylocke-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9500943.jpg"
+      },
+      {
+        "id": "6267332",
+        "order": 122,
+        "title": "Cable: Love and Chrome #3",
+        "series": "Cable: Love and Chrome",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6267332/cable-love-and-chrome-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6267332.jpg"
+      },
+      {
+        "id": "7414844",
+        "order": 123,
+        "title": "Magik #3",
+        "series": "Magik",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7414844/magik-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7414844.jpg"
+      },
+      {
+        "id": "1671608",
+        "order": 124,
+        "title": "Deadpool / Wolverine #3",
+        "series": "Deadpool / Wolverine",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1671608/deadpool-wolverine-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1671608.jpg"
+      },
+      {
+        "id": "2463130",
+        "order": 125,
+        "title": "X-Manhunt Omega #1",
+        "series": "X-Manhunt Omega",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2463130/x-manhunt-omega-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2463130.jpg"
+      },
+      {
+        "id": "9384250",
+        "order": 126,
+        "title": "Laura Kinney: Wolverine #4",
+        "series": "Laura Kinney: Wolverine",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9384250/laura-kinney-wolverine-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9384250.jpg"
+      },
+      {
+        "id": "2659572",
+        "order": 127,
+        "title": "Uncanny X-Men #12",
+        "series": "Uncanny X-Men",
+        "issue": "12",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2659572/uncanny-x-men-12",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2659572.jpg"
+      },
+      {
+        "id": "6261849",
+        "order": 128,
+        "title": "Weapon X-Men #2",
+        "series": "Weapon X-Men",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6261849/weapon-x-men-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6261849.jpg"
+      },
+      {
+        "id": "8160886",
+        "order": 129,
+        "title": "Psylocke #6",
+        "series": "Psylocke",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8160886/psylocke-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8160886.jpg"
+      },
+      {
+        "id": "9604964",
+        "order": 130,
+        "title": "Hellverine #5",
+        "series": "Hellverine",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9604964/hellverine-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9604964.jpg"
+      },
+      {
+        "id": "6679041",
+        "order": 131,
+        "title": "X-Men #14",
+        "series": "X-Men",
+        "issue": "14",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6679041/x-men-14",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6679041.jpg"
+      },
+      {
+        "id": "4665491",
+        "order": 132,
+        "title": "Uncanny X-Men #13",
+        "series": "Uncanny X-Men",
+        "issue": "13",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4665491/uncanny-x-men-13",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4665491.jpg"
+      },
+      {
+        "id": "6888795",
+        "order": 133,
+        "title": "Laura Kinney: Wolverine #5",
+        "series": "Laura Kinney: Wolverine",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6888795/laura-kinney-wolverine-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6888795.jpg"
+      },
+      {
+        "id": "6970973",
+        "order": 134,
+        "title": "Phoenix #10",
+        "series": "Phoenix",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6970973/phoenix-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6970973.jpg"
+      },
+      {
+        "id": "4340502",
+        "order": 135,
+        "title": "Storm #7",
+        "series": "Storm",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4340502/storm-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4340502.jpg"
+      },
+      {
+        "id": "6492416",
+        "order": 136,
+        "title": "Cable: Love and Chrome #4",
+        "series": "Cable: Love and Chrome",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6492416/cable-love-and-chrome-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6492416.jpg"
+      },
+      {
+        "id": "1375564",
+        "order": 137,
+        "title": "Exceptional X-Men #8",
+        "series": "Exceptional X-Men",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1375564/exceptional-x-men-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1375564.jpg"
+      },
+      {
+        "id": "9130712",
+        "order": 138,
+        "title": "X-Factor #9",
+        "series": "X-Factor",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9130712/x-factor-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9130712.jpg"
+      },
+      {
+        "id": "9225376",
+        "order": 139,
+        "title": "Wolverine #8",
+        "series": "Wolverine",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9225376/wolverine-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9225376.jpg"
+      },
+      {
+        "id": "7315505",
+        "order": 140,
+        "title": "X-Force #10",
+        "series": "X-Force",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7315505/x-force-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7315505.jpg"
+      },
+      {
+        "id": "8699035",
+        "order": 141,
+        "title": "Magik #4",
+        "series": "Magik",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8699035/magik-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8699035.jpg"
+      },
+      {
+        "id": "8036581",
+        "order": 142,
+        "title": "Deadpool / Wolverine #4",
+        "series": "Deadpool / Wolverine",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8036581/deadpool-wolverine-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8036581.jpg"
+      },
+      {
+        "id": "6207115",
+        "order": 143,
+        "title": "X-Men #15",
+        "series": "X-Men",
+        "issue": "15",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6207115/x-men-15",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6207115.jpg"
+      },
+      {
+        "id": "1611943",
+        "order": 144,
+        "title": "NYX #10",
+        "series": "NYX",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1611943/nyx-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1611943.jpg"
+      },
+      {
+        "id": "1448272",
+        "order": 145,
+        "title": "Weapon X-Men #3",
+        "series": "Weapon X-Men",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1448272/weapon-x-men-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1448272.jpg"
+      },
+      {
+        "id": "2686482",
+        "order": 146,
+        "title": "Free Comic Book Day 2025: Fantastic Four / Giant-Size X-Men #1",
+        "series": "Free Comic Book Day 2025: Fantastic Four / Giant-Size X-Men",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2686482/free-comic-book-day-2025-fantastic-four-giant-size-x-men-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2686482.jpg"
+      },
+      {
+        "id": "1254317",
+        "order": 147,
+        "title": "X-Men #16",
+        "series": "X-Men",
+        "issue": "16",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1254317/x-men-16",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1254317.jpg"
+      },
+      {
+        "id": "9407150",
+        "order": 148,
+        "title": "Storm #8",
+        "series": "Storm",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9407150/storm-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9407150.jpg"
+      },
+      {
+        "id": "3569645",
+        "order": 149,
+        "title": "Laura Kinney: Wolverine #6",
+        "series": "Laura Kinney: Wolverine",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3569645/laura-kinney-wolverine-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3569645.jpg"
+      },
+      {
+        "id": "1749231",
+        "order": 150,
+        "title": "Psylocke #7",
+        "series": "Psylocke",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1749231/psylocke-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1749231.jpg"
+      },
+      {
+        "id": "2862816",
+        "order": 151,
+        "title": "Wolverine #9",
+        "series": "Wolverine",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2862816/wolverine-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2862816.jpg"
+      },
+      {
+        "id": "9324240",
+        "order": 152,
+        "title": "X-Factor #10",
+        "series": "X-Factor",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9324240/x-factor-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9324240.jpg"
+      },
+      {
+        "id": "7586049",
+        "order": 153,
+        "title": "Phoenix #11",
+        "series": "Phoenix",
+        "issue": "11",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7586049/phoenix-11",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7586049.jpg"
+      },
+      {
+        "id": "5260915",
+        "order": 154,
+        "title": "Uncanny X-Men #14",
+        "series": "Uncanny X-Men",
+        "issue": "14",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5260915/uncanny-x-men-14",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5260915.jpg"
+      },
+      {
+        "id": "9062102",
+        "order": 155,
+        "title": "Hellverine #6",
+        "series": "Hellverine",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9062102/hellverine-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9062102.jpg"
+      },
+      {
+        "id": "4690599",
+        "order": 156,
+        "title": "Weapon X-Men #4",
+        "series": "Weapon X-Men",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4690599/weapon-x-men-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4690599.jpg"
+      },
+      {
+        "id": "1896088",
+        "order": 157,
+        "title": "Exceptional X-Men #9",
+        "series": "Exceptional X-Men",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1896088/exceptional-x-men-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1896088.jpg"
+      },
+      {
+        "id": "1890366",
+        "order": 158,
+        "title": "Giant-Size X-Men #1",
+        "series": "Giant-Size X-Men",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1890366/giant-size-x-men-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1890366.jpg"
+      },
+      {
+        "id": "7922991",
+        "order": 159,
+        "title": "Magik #5",
+        "series": "Magik",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7922991/magik-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7922991.jpg"
+      },
+      {
+        "id": "3840214",
+        "order": 160,
+        "title": "Cable: Love and Chrome #5",
+        "series": "Cable: Love and Chrome",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3840214/cable-love-and-chrome-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3840214.jpg"
+      },
+      {
+        "id": "1376485",
+        "order": 161,
+        "title": "Uncanny X-Men #15",
+        "series": "Uncanny X-Men",
+        "issue": "15",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1376485/uncanny-x-men-15",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1376485.jpg"
+      },
+      {
+        "id": "1443555",
+        "order": 162,
+        "title": "Deadpool / Wolverine #5",
+        "series": "Deadpool / Wolverine",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1443555/deadpool-wolverine-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1443555.jpg"
+      },
+      {
+        "id": "4075834",
+        "order": 163,
+        "title": "X-Men #17",
+        "series": "X-Men",
+        "issue": "17",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4075834/x-men-17",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4075834.jpg"
+      },
+      {
+        "id": "2827348",
+        "order": 164,
+        "title": "Hellverine #7",
+        "series": "Hellverine",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2827348/hellverine-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2827348.jpg"
+      },
+      {
+        "id": "6616689",
+        "order": 165,
+        "title": "Laura Kinney: Wolverine #7",
+        "series": "Laura Kinney: Wolverine",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6616689/laura-kinney-wolverine-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6616689.jpg"
+      },
+      {
+        "id": "1108836",
+        "order": 166,
+        "title": "Storm #9",
+        "series": "Storm",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1108836/storm-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1108836.jpg"
+      },
+      {
+        "id": "3552505",
+        "order": 167,
+        "title": "Giant-Size Dark Phoenix Saga #1",
+        "series": "Giant-Size Dark Phoenix Saga",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3552505/giant-size-dark-phoenix-saga-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3552505.jpg"
+      },
+      {
+        "id": "6680566",
+        "order": 168,
+        "title": "Magik #6",
+        "series": "Magik",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6680566/magik-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6680566.jpg"
+      },
+      {
+        "id": "3202041",
+        "order": 169,
+        "title": "Exceptional X-Men #10",
+        "series": "Exceptional X-Men",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3202041/exceptional-x-men-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3202041.jpg"
+      },
+      {
+        "id": "6203706",
+        "order": 170,
+        "title": "Deadpool / Wolverine #6",
+        "series": "Deadpool / Wolverine",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6203706/deadpool-wolverine-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6203706.jpg"
+      },
+      {
+        "id": "6491446",
+        "order": 171,
+        "title": "Phoenix #12",
+        "series": "Phoenix",
+        "issue": "12",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6491446/phoenix-12",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6491446.jpg"
+      },
+      {
+        "id": "8080634",
+        "order": 172,
+        "title": "X-Men #18",
+        "series": "X-Men",
+        "issue": "18",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8080634/x-men-18",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8080634.jpg"
+      },
+      {
+        "id": "6445555",
+        "order": 173,
+        "title": "Weapon X-Men #5",
+        "series": "Weapon X-Men",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6445555/weapon-x-men-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6445555.jpg"
+      },
+      {
+        "id": "2880405",
+        "order": 174,
+        "title": "Psylocke #8",
+        "series": "Psylocke",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2880405/psylocke-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2880405.jpg"
+      },
+      {
+        "id": "6468915",
+        "order": 175,
+        "title": "Wolverine #10",
+        "series": "Wolverine",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6468915/wolverine-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6468915.jpg"
+      },
+      {
+        "id": "3148870",
+        "order": 176,
+        "title": "Giant-Size Age of Apocalypse #1",
+        "series": "Giant-Size Age of Apocalypse",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3148870/giant-size-age-of-apocalypse-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3148870.jpg"
+      },
+      {
+        "id": "5616962",
+        "order": 177,
+        "title": "Uncanny X-Men #16",
+        "series": "Uncanny X-Men",
+        "issue": "16",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5616962/uncanny-x-men-16",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5616962.jpg"
+      },
+      {
+        "id": "1428838",
+        "order": 178,
+        "title": "X-Men: Demons and Death #1",
+        "series": "X-Men: Demons and Death",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1428838/x-men-demons-and-death-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1428838.jpg"
+      },
+      {
+        "id": "5793599",
+        "order": 179,
+        "title": "X-Men: Hellfire Vigil #1",
+        "series": "X-Men: Hellfire Vigil",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5793599/x-men-hellfire-vigil-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5793599.jpg"
+      },
+      {
+        "id": "8769194",
+        "order": 180,
+        "title": "X-Men #19",
+        "series": "X-Men",
+        "issue": "19",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8769194/x-men-19",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8769194.jpg"
+      },
+      {
+        "id": "1744882",
+        "order": 181,
+        "title": "Hellverine #8",
+        "series": "Hellverine",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1744882/hellverine-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1744882.jpg"
+      },
+      {
+        "id": "7731339",
+        "order": 182,
+        "title": "Uncanny X-Men #17",
+        "series": "Uncanny X-Men",
+        "issue": "17",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7731339/uncanny-x-men-17",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7731339.jpg"
+      },
+      {
+        "id": "7115590",
+        "order": 183,
+        "title": "Laura Kinney: Wolverine #8",
+        "series": "Laura Kinney: Wolverine",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7115590/laura-kinney-wolverine-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7115590.jpg"
+      },
+      {
+        "id": "4744368",
+        "order": 184,
+        "title": "Magik #7",
+        "series": "Magik",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4744368/magik-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4744368.jpg"
+      },
+      {
+        "id": "3706150",
+        "order": 185,
+        "title": "Deadpool / Wolverine #7",
+        "series": "Deadpool / Wolverine",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3706150/deadpool-wolverine-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3706150.jpg"
+      },
+      {
+        "id": "4080930",
+        "order": 186,
+        "title": "Giant-Size House of M #1",
+        "series": "Giant-Size House of M",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4080930/giant-size-house-of-m-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4080930.jpg"
+      },
+      {
+        "id": "1104990",
+        "order": 187,
+        "title": "Exceptional X-Men #11",
+        "series": "Exceptional X-Men",
+        "issue": "11",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1104990/exceptional-x-men-11",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1104990.jpg"
+      },
+      {
+        "id": "3441407",
+        "order": 188,
+        "title": "X-Men: Age of Revelation #0",
+        "series": "X-Men: Age of Revelation",
+        "issue": "0",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3441407/x-men-age-of-revelation-0",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3441407.jpg"
+      },
+      {
+        "id": "4542439",
+        "order": 189,
+        "title": "Uncanny X-Men #18",
+        "series": "Uncanny X-Men",
+        "issue": "18",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4542439/uncanny-x-men-18",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4542439.jpg"
+      },
+      {
+        "id": "3540479",
+        "order": 190,
+        "title": "Wolverine #11",
+        "series": "Wolverine",
+        "issue": "11",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3540479/wolverine-11",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3540479.jpg"
+      },
+      {
+        "id": "1179614",
+        "order": 191,
+        "title": "Phoenix #13",
+        "series": "Phoenix",
+        "issue": "13",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1179614/phoenix-13",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1179614.jpg"
+      },
+      {
+        "id": "2940779",
+        "order": 192,
+        "title": "Psylocke #9",
+        "series": "Psylocke",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2940779/psylocke-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2940779.jpg"
+      },
+      {
+        "id": "7666599",
+        "order": 193,
+        "title": "Storm #10",
+        "series": "Storm",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7666599/storm-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7666599.jpg"
+      },
+      {
+        "id": "2121948",
+        "order": 194,
+        "title": "Uncanny X-Men #19",
+        "series": "Uncanny X-Men",
+        "issue": "19",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2121948/uncanny-x-men-19",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2121948.jpg"
+      },
+      {
+        "id": "7275202",
+        "order": 195,
+        "title": "Storm #11",
+        "series": "Storm",
+        "issue": "11",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7275202/storm-11",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7275202.jpg"
+      },
+      {
+        "id": "6903263",
+        "order": 196,
+        "title": "Hellverine #9",
+        "series": "Hellverine",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6903263/hellverine-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6903263.jpg"
+      },
+      {
+        "id": "6318351",
+        "order": 197,
+        "title": "Giant-Size X-Men #2",
+        "series": "Giant-Size X-Men",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6318351/giant-size-x-men-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6318351.jpg"
+      },
+      {
+        "id": "7288958",
+        "order": 198,
+        "title": "Magik #8",
+        "series": "Magik",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7288958/magik-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7288958.jpg"
+      },
+      {
+        "id": "9189255",
+        "order": 199,
+        "title": "X-Men #20",
+        "series": "X-Men",
+        "issue": "20",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9189255/x-men-20",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9189255.jpg"
+      },
+      {
+        "id": "5937519",
+        "order": 200,
+        "title": "Laura Kinney: Wolverine #9",
+        "series": "Laura Kinney: Wolverine",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5937519/laura-kinney-wolverine-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5937519.jpg"
+      },
+      {
+        "id": "9489337",
+        "order": 201,
+        "title": "Psylocke #10",
+        "series": "Psylocke",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9489337/psylocke-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9489337.jpg"
+      },
+      {
+        "id": "3319773",
+        "order": 202,
+        "title": "Wolverine #12",
+        "series": "Wolverine",
+        "issue": "12",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3319773/wolverine-12",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3319773.jpg"
+      },
+      {
+        "id": "9747858",
+        "order": 203,
+        "title": "Exceptional X-Men #12",
+        "series": "Exceptional X-Men",
+        "issue": "12",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9747858/exceptional-x-men-12",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9747858.jpg"
+      },
+      {
+        "id": "3389245",
+        "order": 204,
+        "title": "Phoenix #14",
+        "series": "Phoenix",
+        "issue": "14",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3389245/phoenix-14",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3389245.jpg"
+      },
+      {
+        "id": "2387598",
+        "order": 205,
+        "title": "X-Men: Tooth and Claw #1",
+        "series": "X-Men: Tooth and Claw",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2387598/x-men-tooth-and-claw-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2387598.jpg"
+      },
+      {
+        "id": "3689987",
+        "order": 206,
+        "title": "X-Men #21",
+        "series": "X-Men",
+        "issue": "21",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3689987/x-men-21",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3689987.jpg"
+      },
+      {
+        "id": "4068006",
+        "order": 207,
+        "title": "Deadpool / Wolverine #8",
+        "series": "Deadpool / Wolverine",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4068006/deadpool-wolverine-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4068006.jpg"
+      },
+      {
+        "id": "4931121",
+        "order": 208,
+        "title": "Uncanny X-Men #20",
+        "series": "Uncanny X-Men",
+        "issue": "20",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4931121/uncanny-x-men-20",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4931121.jpg"
+      },
+      {
+        "id": "5593307",
+        "order": 209,
+        "title": "Wolverine #13",
+        "series": "Wolverine",
+        "issue": "13",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5593307/wolverine-13",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5593307.jpg"
+      },
+      {
+        "id": "3536776",
+        "order": 210,
+        "title": "Laura Kinney: Wolverine #10",
+        "series": "Laura Kinney: Wolverine",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3536776/laura-kinney-wolverine-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3536776.jpg"
+      },
+      {
+        "id": "8315465",
+        "order": 211,
+        "title": "Magik #9",
+        "series": "Magik",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8315465/magik-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8315465.jpg"
+      },
+      {
+        "id": "6818650",
+        "order": 212,
+        "title": "Exceptional X-Men #13",
+        "series": "Exceptional X-Men",
+        "issue": "13",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6818650/exceptional-x-men-13",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6818650.jpg"
+      },
+      {
+        "id": "4618590",
+        "order": 213,
+        "title": "Hellverine #10",
+        "series": "Hellverine",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4618590/hellverine-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4618590.jpg"
+      },
+      {
+        "id": "4735438",
+        "order": 214,
+        "title": "Deadpool / Wolverine #9",
+        "series": "Deadpool / Wolverine",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4735438/deadpool-wolverine-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4735438.jpg"
+      },
+      {
+        "id": "6126233",
+        "order": 215,
+        "title": "Uncanny X-Men #21",
+        "series": "Uncanny X-Men",
+        "issue": "21",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6126233/uncanny-x-men-21",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6126233.jpg"
+      },
+      {
+        "id": "9633148",
+        "order": 216,
+        "title": "Phoenix #15",
+        "series": "Phoenix",
+        "issue": "15",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9633148/phoenix-15",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9633148.jpg"
+      },
+      {
+        "id": "2823035",
+        "order": 217,
+        "title": "Magik #10",
+        "series": "Magik",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2823035/magik-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2823035.jpg"
+      },
+      {
+        "id": "3319166",
+        "order": 218,
+        "title": "X-Men #22",
+        "series": "X-Men",
+        "issue": "22",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3319166/x-men-22",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3319166.jpg"
+      },
+      {
+        "id": "7707291",
+        "order": 219,
+        "title": "Storm #12",
+        "series": "Storm",
+        "issue": "12",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7707291/storm-12",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7707291.jpg"
+      },
+      {
+        "id": "6945709",
+        "order": 220,
+        "title": "X-Men: The Undertow #1",
+        "series": "X-Men: The Undertow",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6945709/x-men-the-undertow-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6945709.jpg"
+      },
+      {
+        "id": "4380731",
+        "order": 221,
+        "title": "Deadpool / Wolverine #10",
+        "series": "Deadpool / Wolverine",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4380731/deadpool-wolverine-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4380731.jpg"
+      },
+      {
+        "id": "5411567",
+        "order": 222,
+        "title": "X-Men: Age of Revelation Overture #1",
+        "series": "X-Men: Age of Revelation Overture",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5411567/x-men-age-of-revelation-overture-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5411567.jpg"
+      },
+      {
+        "id": "5012583",
+        "order": 223,
+        "title": "World of Revelation #1",
+        "series": "World of Revelation",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5012583/world-of-revelation-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5012583.jpg"
+      },
+      {
+        "id": "2317885",
+        "order": 224,
+        "title": "Amazing X-Men #1",
+        "series": "Amazing X-Men",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2317885/amazing-x-men-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2317885.jpg"
+      },
+      {
+        "id": "3398468",
+        "order": 225,
+        "title": "Binary #1",
+        "series": "Binary",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3398468/binary-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3398468.jpg"
+      },
+      {
+        "id": "5713533",
+        "order": 226,
+        "title": "Laura Kinney: Sabretooth #1",
+        "series": "Laura Kinney: Sabretooth",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5713533/laura-kinney-sabretooth-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5713533.jpg"
+      },
+      {
+        "id": "5616438",
+        "order": 227,
+        "title": "Longshots #1",
+        "series": "Longshots",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5616438/longshots-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5616438.jpg"
+      },
+      {
+        "id": "7442494",
+        "order": 228,
+        "title": "Iron & Frost #1",
+        "series": "Iron & Frost",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7442494/iron-frost-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7442494.jpg"
+      },
+      {
+        "id": "2121131",
+        "order": 229,
+        "title": "Rogue Storm #1",
+        "series": "Rogue Storm",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2121131/rogue-storm-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2121131.jpg"
+      },
+      {
+        "id": "6082304",
+        "order": 230,
+        "title": "Sinister's Six #1",
+        "series": "Sinister's Six",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6082304/sinisters-six-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6082304.jpg"
+      },
+      {
+        "id": "2998882",
+        "order": 231,
+        "title": "Unbreakable X-Men #1",
+        "series": "Unbreakable X-Men",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2998882/unbreakable-x-men-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2998882.jpg"
+      },
+      {
+        "id": "7227448",
+        "order": 232,
+        "title": "The Last Wolverine #1",
+        "series": "The Last Wolverine",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7227448/the-last-wolverine-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7227448.jpg"
+      },
+      {
+        "id": "1162454",
+        "order": 233,
+        "title": "Omega Kids #1",
+        "series": "Omega Kids",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1162454/omega-kids-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1162454.jpg"
+      },
+      {
+        "id": "9833096",
+        "order": 234,
+        "title": "Radioactive Spider-Man #1",
+        "series": "Radioactive Spider-Man",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9833096/radioactive-spider-man-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9833096.jpg"
+      },
+      {
+        "id": "5683587",
+        "order": 235,
+        "title": "X-Men: Book of Revelation #1",
+        "series": "X-Men: Book of Revelation",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5683587/x-men-book-of-revelation-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5683587.jpg"
+      },
+      {
+        "id": "4960808",
+        "order": 236,
+        "title": "Cloak or Dagger #1",
+        "series": "Cloak or Dagger",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4960808/cloak-or-dagger-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4960808.jpg"
+      },
+      {
+        "id": "5303513",
+        "order": 237,
+        "title": "Expatriate X-Men #1",
+        "series": "Expatriate X-Men",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5303513/expatriate-x-men-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5303513.jpg"
+      },
+      {
+        "id": "2169978",
+        "order": 238,
+        "title": "Undeadpool #1",
+        "series": "Undeadpool",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2169978/undeadpool-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2169978.jpg"
+      },
+      {
+        "id": "7247408",
+        "order": 239,
+        "title": "X-Vengers #1",
+        "series": "X-Vengers",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7247408/x-vengers-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7247408.jpg"
+      },
+      {
+        "id": "3058734",
+        "order": 240,
+        "title": "Amazing X-Men #2",
+        "series": "Amazing X-Men",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3058734/amazing-x-men-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3058734.jpg"
+      },
+      {
+        "id": "7928003",
+        "order": 241,
+        "title": "Binary #2",
+        "series": "Binary",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7928003/binary-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7928003.jpg"
+      },
+      {
+        "id": "5361669",
+        "order": 242,
+        "title": "Laura Kinney: Sabretooth #2",
+        "series": "Laura Kinney: Sabretooth",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5361669/laura-kinney-sabretooth-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5361669.jpg"
+      },
+      {
+        "id": "6978690",
+        "order": 243,
+        "title": "Longshots #2",
+        "series": "Longshots",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6978690/longshots-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6978690.jpg"
+      },
+      {
+        "id": "8649601",
+        "order": 244,
+        "title": "Rogue Storm #2",
+        "series": "Rogue Storm",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8649601/rogue-storm-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8649601.jpg"
+      },
+      {
+        "id": "9045933",
+        "order": 245,
+        "title": "Iron & Frost #2",
+        "series": "Iron & Frost",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9045933/iron-frost-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9045933.jpg"
+      },
+      {
+        "id": "6784321",
+        "order": 246,
+        "title": "Sinister's Six #2",
+        "series": "Sinister's Six",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6784321/sinisters-six-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6784321.jpg"
+      },
+      {
+        "id": "6109302",
+        "order": 247,
+        "title": "Unbreakable X-Men #2",
+        "series": "Unbreakable X-Men",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6109302/unbreakable-x-men-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6109302.jpg"
+      },
+      {
+        "id": "2572961",
+        "order": 248,
+        "title": "The Last Wolverine #2",
+        "series": "The Last Wolverine",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2572961/the-last-wolverine-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2572961.jpg"
+      },
+      {
+        "id": "2345141",
+        "order": 249,
+        "title": "Omega Kids #2",
+        "series": "Omega Kids",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2345141/omega-kids-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2345141.jpg"
+      },
+      {
+        "id": "4839136",
+        "order": 250,
+        "title": "Radioactive Spider-Man #2",
+        "series": "Radioactive Spider-Man",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4839136/radioactive-spider-man-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4839136.jpg"
+      },
+      {
+        "id": "7100607",
+        "order": 251,
+        "title": "X-Men: Book of Revelation #2",
+        "series": "X-Men: Book of Revelation",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7100607/x-men-book-of-revelation-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7100607.jpg"
+      },
+      {
+        "id": "9544807",
+        "order": 252,
+        "title": "Cloak or Dagger #2",
+        "series": "Cloak or Dagger",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9544807/cloak-or-dagger-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9544807.jpg"
+      },
+      {
+        "id": "7405493",
+        "order": 253,
+        "title": "Expatriate X-Men #2",
+        "series": "Expatriate X-Men",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7405493/expatriate-x-men-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7405493.jpg"
+      },
+      {
+        "id": "2553951",
+        "order": 254,
+        "title": "Undeadpool #2",
+        "series": "Undeadpool",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2553951/undeadpool-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2553951.jpg"
+      },
+      {
+        "id": "2036394",
+        "order": 255,
+        "title": "X-Vengers #2",
+        "series": "X-Vengers",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2036394/x-vengers-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2036394.jpg"
+      },
+      {
+        "id": "3780510",
+        "order": 256,
+        "title": "Amazing X-Men #3",
+        "series": "Amazing X-Men",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3780510/amazing-x-men-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3780510.jpg"
+      },
+      {
+        "id": "8353398",
+        "order": 257,
+        "title": "Binary #3",
+        "series": "Binary",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8353398/binary-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8353398.jpg"
+      },
+      {
+        "id": "4596645",
+        "order": 258,
+        "title": "Laura Kinney: Sabretooth #3",
+        "series": "Laura Kinney: Sabretooth",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4596645/laura-kinney-sabretooth-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4596645.jpg"
+      },
+      {
+        "id": "2268427",
+        "order": 259,
+        "title": "Longshots #3",
+        "series": "Longshots",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2268427/longshots-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2268427.jpg"
+      },
+      {
+        "id": "2774516",
+        "order": 260,
+        "title": "Unbreakable X-Men #3",
+        "series": "Unbreakable X-Men",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2774516/unbreakable-x-men-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2774516.jpg"
+      },
+      {
+        "id": "9634186",
+        "order": 261,
+        "title": "Iron & Frost #3",
+        "series": "Iron & Frost",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9634186/iron-frost-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9634186.jpg"
+      },
+      {
+        "id": "5953644",
+        "order": 262,
+        "title": "Sinister's Six #3",
+        "series": "Sinister's Six",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5953644/sinisters-six-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5953644.jpg"
+      },
+      {
+        "id": "3916390",
+        "order": 263,
+        "title": "Rogue Storm #3",
+        "series": "Rogue Storm",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3916390/rogue-storm-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3916390.jpg"
+      },
+      {
+        "id": "6623979",
+        "order": 264,
+        "title": "The Last Wolverine #3",
+        "series": "The Last Wolverine",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6623979/the-last-wolverine-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6623979.jpg"
+      },
+      {
+        "id": "5447518",
+        "order": 265,
+        "title": "Omega Kids #3",
+        "series": "Omega Kids",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5447518/omega-kids-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5447518.jpg"
+      },
+      {
+        "id": "1753393",
+        "order": 266,
+        "title": "Radioactive Spider-Man #3",
+        "series": "Radioactive Spider-Man",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1753393/radioactive-spider-man-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1753393.jpg"
+      },
+      {
+        "id": "6096116",
+        "order": 267,
+        "title": "X-Men: Book of Revelation #3",
+        "series": "X-Men: Book of Revelation",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6096116/x-men-book-of-revelation-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6096116.jpg"
+      },
+      {
+        "id": "3327222",
+        "order": 268,
+        "title": "Cloak or Dagger #3",
+        "series": "Cloak or Dagger",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3327222/cloak-or-dagger-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3327222.jpg"
+      },
+      {
+        "id": "5699055",
+        "order": 269,
+        "title": "Expatriate X-Men #3",
+        "series": "Expatriate X-Men",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5699055/expatriate-x-men-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5699055.jpg"
+      },
+      {
+        "id": "5758406",
+        "order": 270,
+        "title": "Undeadpool #3",
+        "series": "Undeadpool",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5758406/undeadpool-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5758406.jpg"
+      },
+      {
+        "id": "4532611",
+        "order": 271,
+        "title": "X-Vengers #3",
+        "series": "X-Vengers",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4532611/x-vengers-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4532611.jpg"
+      },
+      {
+        "id": "2984628",
+        "order": 272,
+        "title": "X-Men: Age of Revelation Finale #1",
+        "series": "X-Men: Age of Revelation Finale",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2984628/x-men-age-of-revelation-finale-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2984628.jpg"
+      }
+    ]
+  },
+  {
+    "listId": "locg-114545",
+    "updatedAt": "2026-10-26T21:15:59.019907+00:00",
+    "items": [
+      {
+        "id": "8532443",
+        "order": 1,
+        "title": "X-Men #23",
+        "series": "X-Men",
+        "issue": "23",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8532443/x-men-23",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8532443.jpg"
+      },
+      {
+        "id": "3908186",
+        "order": 2,
+        "title": "Wolverine #14",
+        "series": "Wolverine",
+        "issue": "14",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3908186/wolverine-14",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3908186.jpg"
+      },
+      {
+        "id": "6023200",
+        "order": 3,
+        "title": "Uncanny X-Men #22",
+        "series": "Uncanny X-Men",
+        "issue": "22",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6023200/uncanny-x-men-22",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6023200.jpg"
+      },
+      {
+        "id": "2766247",
+        "order": 4,
+        "title": "Inglorious X-Force #1",
+        "series": "Inglorious X-Force",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2766247/inglorious-x-force-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2766247.jpg"
+      },
+      {
+        "id": "1073181",
+        "order": 5,
+        "title": "Rogue #1",
+        "series": "Rogue",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1073181/rogue-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1073181.jpg"
+      },
+      {
+        "id": "9046138",
+        "order": 6,
+        "title": "X-Men #24",
+        "series": "X-Men",
+        "issue": "24",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9046138/x-men-24",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9046138.jpg"
+      },
+      {
+        "id": "5847753",
+        "order": 7,
+        "title": "Storm: Earth's Mightiest Mutant #1",
+        "series": "Storm: Earth's Mightiest Mutant",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5847753/storm-earths-mightiest-mutant-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5847753.jpg"
+      },
+      {
+        "id": "9992717",
+        "order": 8,
+        "title": "Magik and Colossus #1",
+        "series": "Magik and Colossus",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9992717/magik-and-colossus-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9992717.jpg"
+      },
+      {
+        "id": "2350987",
+        "order": 9,
+        "title": "Wolverine #15",
+        "series": "Wolverine",
+        "issue": "15",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2350987/wolverine-15",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2350987.jpg"
+      },
+      {
+        "id": "7934471",
+        "order": 10,
+        "title": "Uncanny X-Men #23",
+        "series": "Uncanny X-Men",
+        "issue": "23",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7934471/uncanny-x-men-23",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7934471.jpg"
+      },
+      {
+        "id": "9130314",
+        "order": 11,
+        "title": "Cyclops #1",
+        "series": "Cyclops",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9130314/cyclops-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9130314.jpg"
+      },
+      {
+        "id": "8930000",
+        "order": 12,
+        "title": "Wade Wilson: Deadpool #1",
+        "series": "Wade Wilson: Deadpool",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8930000/wade-wilson-deadpool-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8930000.jpg"
+      },
+      {
+        "id": "2543906",
+        "order": 13,
+        "title": "X-Men #25",
+        "series": "X-Men",
+        "issue": "25",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2543906/x-men-25",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2543906.jpg"
+      },
+      {
+        "id": "1887039",
+        "order": 14,
+        "title": "Generation X-23 #1",
+        "series": "Generation X-23",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1887039/generation-x-23-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1887039.jpg"
+      },
+      {
+        "id": "9980287",
+        "order": 15,
+        "title": "Wolverine #16",
+        "series": "Wolverine",
+        "issue": "16",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9980287/wolverine-16",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9980287.jpg"
+      },
+      {
+        "id": "8201589",
+        "order": 16,
+        "title": "Uncanny X-Men #24",
+        "series": "Uncanny X-Men",
+        "issue": "24",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8201589/uncanny-x-men-24",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8201589.jpg"
+      },
+      {
+        "id": "5358607",
+        "order": 17,
+        "title": "Inglorious X-Force #2",
+        "series": "Inglorious X-Force",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5358607/inglorious-x-force-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5358607.jpg"
+      },
+      {
+        "id": "6449513",
+        "order": 18,
+        "title": "Rogue #2",
+        "series": "Rogue",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6449513/rogue-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6449513.jpg"
+      },
+      {
+        "id": "4713473",
+        "order": 19,
+        "title": "X-Men #26",
+        "series": "X-Men",
+        "issue": "26",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4713473/x-men-26",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4713473.jpg"
+      },
+      {
+        "id": "8647014",
+        "order": 20,
+        "title": "Wolverine #17",
+        "series": "Wolverine",
+        "issue": "17",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8647014/wolverine-17",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8647014.jpg"
+      },
+      {
+        "id": "4677008",
+        "order": 21,
+        "title": "Moonstar #1",
+        "series": "Moonstar",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4677008/moonstar-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4677008.jpg"
+      },
+      {
+        "id": "2302675",
+        "order": 22,
+        "title": "X-Men Annual #1",
+        "series": "X-Men Annual",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2302675/x-men-annual-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2302675.jpg"
+      },
+      {
+        "id": "6897059",
+        "order": 23,
+        "title": "X-Men United #1",
+        "series": "X-Men United",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6897059/x-men-united-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6897059.jpg"
+      },
+      {
+        "id": "3989548",
+        "order": 24,
+        "title": "Storm: Earth's Mightiest Mutant #2",
+        "series": "Storm: Earth's Mightiest Mutant",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3989548/storm-earths-mightiest-mutant-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3989548.jpg"
+      },
+      {
+        "id": "7451077",
+        "order": 25,
+        "title": "Magik and Colossus #2",
+        "series": "Magik and Colossus",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7451077/magik-and-colossus-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7451077.jpg"
+      },
+      {
+        "id": "2431547",
+        "order": 26,
+        "title": "X-Men #27",
+        "series": "X-Men",
+        "issue": "27",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2431547/x-men-27",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2431547.jpg"
+      },
+      {
+        "id": "3227906",
+        "order": 27,
+        "title": "Wade Wilson: Deadpool #2",
+        "series": "Wade Wilson: Deadpool",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3227906/wade-wilson-deadpool-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3227906.jpg"
+      },
+      {
+        "id": "8698417",
+        "order": 28,
+        "title": "Cyclops #2",
+        "series": "Cyclops",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8698417/cyclops-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8698417.jpg"
+      },
+      {
+        "id": "6959299",
+        "order": 29,
+        "title": "Uncanny X-Men #25",
+        "series": "Uncanny X-Men",
+        "issue": "25",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6959299/uncanny-x-men-25",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6959299.jpg"
+      },
+      {
+        "id": "4072927",
+        "order": 30,
+        "title": "Inglorious X-Force #3",
+        "series": "Inglorious X-Force",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4072927/inglorious-x-force-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4072927.jpg"
+      },
+      {
+        "id": "8564650",
+        "order": 31,
+        "title": "Generation X-23 #2",
+        "series": "Generation X-23",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8564650/generation-x-23-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8564650.jpg"
+      },
+      {
+        "id": "9369165",
+        "order": 32,
+        "title": "Rogue #3",
+        "series": "Rogue",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9369165/rogue-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9369165.jpg"
+      },
+      {
+        "id": "9115638",
+        "order": 33,
+        "title": "X-Men #28",
+        "series": "X-Men",
+        "issue": "28",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9115638/x-men-28",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9115638.jpg"
+      },
+      {
+        "id": "5378220",
+        "order": 34,
+        "title": "Uncanny X-Men #26",
+        "series": "Uncanny X-Men",
+        "issue": "26",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5378220/uncanny-x-men-26",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5378220.jpg"
+      },
+      {
+        "id": "2927995",
+        "order": 35,
+        "title": "Wolverine #18",
+        "series": "Wolverine",
+        "issue": "18",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2927995/wolverine-18",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2927995.jpg"
+      },
+      {
+        "id": "4231847",
+        "order": 36,
+        "title": "Uncanny X-Men Annual #1",
+        "series": "Uncanny X-Men Annual",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4231847/uncanny-x-men-annual-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4231847.jpg"
+      },
+      {
+        "id": "7826896",
+        "order": 37,
+        "title": "Moonstar #2",
+        "series": "Moonstar",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7826896/moonstar-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7826896.jpg"
+      },
+      {
+        "id": "5085474",
+        "order": 38,
+        "title": "Storm: Earth's Mightiest Mutant #3",
+        "series": "Storm: Earth's Mightiest Mutant",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5085474/storm-earths-mightiest-mutant-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5085474.jpg"
+      },
+      {
+        "id": "4211555",
+        "order": 39,
+        "title": "Inglorious X-Force #4",
+        "series": "Inglorious X-Force",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4211555/inglorious-x-force-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4211555.jpg"
+      },
+      {
+        "id": "3854969",
+        "order": 40,
+        "title": "X-Men United #2",
+        "series": "X-Men United",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3854969/x-men-united-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3854969.jpg"
+      },
+      {
+        "id": "8168703",
+        "order": 41,
+        "title": "Magik and Colossus #3",
+        "series": "Magik and Colossus",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8168703/magik-and-colossus-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8168703.jpg"
+      },
+      {
+        "id": "2525827",
+        "order": 42,
+        "title": "Wolverine #19",
+        "series": "Wolverine",
+        "issue": "19",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2525827/wolverine-19",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2525827.jpg"
+      },
+      {
+        "id": "7999034",
+        "order": 43,
+        "title": "Rogue #4",
+        "series": "Rogue",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7999034/rogue-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7999034.jpg"
+      },
+      {
+        "id": "3801363",
+        "order": 44,
+        "title": "Cyclops #3",
+        "series": "Cyclops",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3801363/cyclops-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3801363.jpg"
+      },
+      {
+        "id": "8968324",
+        "order": 45,
+        "title": "Wade Wilson: Deadpool #3",
+        "series": "Wade Wilson: Deadpool",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8968324/wade-wilson-deadpool-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8968324.jpg"
+      },
+      {
+        "id": "7787214",
+        "order": 46,
+        "title": "Uncanny X-Men #27",
+        "series": "Uncanny X-Men",
+        "issue": "27",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7787214/uncanny-x-men-27",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7787214.jpg"
+      },
+      {
+        "id": "1473047",
+        "order": 47,
+        "title": "Generation X-23 #3",
+        "series": "Generation X-23",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1473047/generation-x-23-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1473047.jpg"
+      },
+      {
+        "id": "9943257",
+        "order": 48,
+        "title": "X-Men #29",
+        "series": "X-Men",
+        "issue": "29",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9943257/x-men-29",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9943257.jpg"
+      },
+      {
+        "id": "4014382",
+        "order": 49,
+        "title": "Storm: Earth's Mightiest Mutant #4",
+        "series": "Storm: Earth's Mightiest Mutant",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4014382/storm-earths-mightiest-mutant-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4014382.jpg"
+      },
+      {
+        "id": "7707194",
+        "order": 50,
+        "title": "Cyclops #4",
+        "series": "Cyclops",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7707194/cyclops-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7707194.jpg"
+      },
+      {
+        "id": "8348197",
+        "order": 51,
+        "title": "Wade Wilson: Deadpool #4",
+        "series": "Wade Wilson: Deadpool",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8348197/wade-wilson-deadpool-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8348197.jpg"
+      },
+      {
+        "id": "8692563",
+        "order": 52,
+        "title": "Uncanny X-Men #28",
+        "series": "Uncanny X-Men",
+        "issue": "28",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8692563/uncanny-x-men-28",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8692563.jpg"
+      },
+      {
+        "id": "7622207",
+        "order": 53,
+        "title": "Wolverine #20",
+        "series": "Wolverine",
+        "issue": "20",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7622207/wolverine-20",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7622207.jpg"
+      },
+      {
+        "id": "5906823",
+        "order": 54,
+        "title": "Magik and Colossus #4",
+        "series": "Magik and Colossus",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5906823/magik-and-colossus-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5906823.jpg"
+      },
+      {
+        "id": "5528983",
+        "order": 55,
+        "title": "Inglorious X-Force #5",
+        "series": "Inglorious X-Force",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5528983/inglorious-x-force-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5528983.jpg"
+      },
+      {
+        "id": "4292803",
+        "order": 56,
+        "title": "X-Men United #3",
+        "series": "X-Men United",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4292803/x-men-united-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4292803.jpg"
+      },
+      {
+        "id": "3196409",
+        "order": 57,
+        "title": "Rogue #5",
+        "series": "Rogue",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3196409/rogue-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3196409.jpg"
+      },
+      {
+        "id": "8475320",
+        "order": 58,
+        "title": "Moonstar #3",
+        "series": "Moonstar",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8475320/moonstar-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8475320.jpg"
+      },
+      {
+        "id": "1906256",
+        "order": 59,
+        "title": "X-Men #30",
+        "series": "X-Men",
+        "issue": "30",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1906256/x-men-30",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1906256.jpg"
+      },
+      {
+        "id": "9787658",
+        "order": 60,
+        "title": "Generation X-23 #4",
+        "series": "Generation X-23",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9787658/generation-x-23-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9787658.jpg"
+      },
+      {
+        "id": "1601312",
+        "order": 61,
+        "title": "Uncanny X-Men #29",
+        "series": "Uncanny X-Men",
+        "issue": "29",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1601312/uncanny-x-men-29",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1601312.jpg"
+      },
+      {
+        "id": "3409923",
+        "order": 62,
+        "title": "Storm: Earth's Mightiest Mutant #5",
+        "series": "Storm: Earth's Mightiest Mutant",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3409923/storm-earths-mightiest-mutant-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3409923.jpg"
+      },
+      {
+        "id": "4949576",
+        "order": 63,
+        "title": "Cyclops #5",
+        "series": "Cyclops",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4949576/cyclops-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4949576.jpg"
+      },
+      {
+        "id": "1588758",
+        "order": 64,
+        "title": "Wade Wilson: Deadpool #5",
+        "series": "Wade Wilson: Deadpool",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1588758/wade-wilson-deadpool-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1588758.jpg"
+      },
+      {
+        "id": "7835083",
+        "order": 65,
+        "title": "X-Men #31",
+        "series": "X-Men",
+        "issue": "31",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7835083/x-men-31",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7835083.jpg"
+      },
+      {
+        "id": "2126239",
+        "order": 66,
+        "title": "Wolverine #21",
+        "series": "Wolverine",
+        "issue": "21",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2126239/wolverine-21",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2126239.jpg"
+      },
+      {
+        "id": "9022409",
+        "order": 67,
+        "title": "Bishop #1",
+        "series": "Bishop",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9022409/bishop-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9022409.jpg"
+      },
+      {
+        "id": "4505253",
+        "order": 68,
+        "title": "X-Men United #4",
+        "series": "X-Men United",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4505253/x-men-united-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4505253.jpg"
+      },
+      {
+        "id": "6352912",
+        "order": 69,
+        "title": "Inglorious X-Force #6",
+        "series": "Inglorious X-Force",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6352912/inglorious-x-force-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6352912.jpg"
+      },
+      {
+        "id": "7293883",
+        "order": 70,
+        "title": "Magik and Colossus #5",
+        "series": "Magik and Colossus",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7293883/magik-and-colossus-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7293883.jpg"
+      },
+      {
+        "id": "4771439",
+        "order": 71,
+        "title": "Uncanny X-Men #30",
+        "series": "Uncanny X-Men",
+        "issue": "30",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4771439/uncanny-x-men-30",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4771439.jpg"
+      },
+      {
+        "id": "9781448",
+        "order": 72,
+        "title": "X-Men #32",
+        "series": "X-Men",
+        "issue": "32",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9781448/x-men-32",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9781448.jpg"
+      },
+      {
+        "id": "4817609",
+        "order": 73,
+        "title": "Generation X-23 #5",
+        "series": "Generation X-23",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4817609/generation-x-23-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4817609.jpg"
+      },
+      {
+        "id": "1692809",
+        "order": 74,
+        "title": "Moonstar #4",
+        "series": "Moonstar",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1692809/moonstar-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1692809.jpg"
+      },
+      {
+        "id": "1976080",
+        "order": 75,
+        "title": "Wolverine #22",
+        "series": "Wolverine",
+        "issue": "22",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1976080/wolverine-22",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1976080.jpg"
+      },
+      {
+        "id": "2239771",
+        "order": 76,
+        "title": "Wade Wilson: Deadpool #6",
+        "series": "Wade Wilson: Deadpool",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2239771/wade-wilson-deadpool-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2239771.jpg"
+      },
+      {
+        "id": "4397722",
+        "order": 77,
+        "title": "X-Men United #5",
+        "series": "X-Men United",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4397722/x-men-united-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4397722.jpg"
+      },
+      {
+        "id": "9354699",
+        "order": 78,
+        "title": "Wolverine #23",
+        "series": "Wolverine",
+        "issue": "23",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9354699/wolverine-23",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9354699.jpg"
+      },
+      {
+        "id": "7102587",
+        "order": 79,
+        "title": "Uncanny X-Men #31",
+        "series": "Uncanny X-Men",
+        "issue": "31",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7102587/uncanny-x-men-31",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7102587.jpg"
+      },
+      {
+        "id": "8931741",
+        "order": 80,
+        "title": "X-Men #33",
+        "series": "X-Men",
+        "issue": "33",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8931741/x-men-33",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8931741.jpg"
+      },
+      {
+        "id": "1427677",
+        "order": 81,
+        "title": "Inglorious X-Force #7",
+        "series": "Inglorious X-Force",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1427677/inglorious-x-force-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1427677.jpg"
+      },
+      {
+        "id": "4572081",
+        "order": 82,
+        "title": "Moonstar #5",
+        "series": "Moonstar",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4572081/moonstar-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4572081.jpg"
+      },
+      {
+        "id": "5451070",
+        "order": 83,
+        "title": "Wolverine #24",
+        "series": "Wolverine",
+        "issue": "24",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5451070/wolverine-24",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5451070.jpg"
+      },
+      {
+        "id": "7649646",
+        "order": 84,
+        "title": "Uncanny X-Men #32",
+        "series": "Uncanny X-Men",
+        "issue": "32",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7649646/uncanny-x-men-32",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7649646.jpg"
+      },
+      {
+        "id": "9721695",
+        "order": 85,
+        "title": "X-Men: The Hellfire Murder #1",
+        "series": "X-Men: The Hellfire Murder",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9721695/x-men-the-hellfire-murder-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9721695.jpg"
+      },
+      {
+        "id": "8176738",
+        "order": 86,
+        "title": "X-Men #34",
+        "series": "X-Men",
+        "issue": "34",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8176738/x-men-34",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8176738.jpg"
+      },
+      {
+        "id": "8174094",
+        "order": 87,
+        "title": "Bishop #2",
+        "series": "Bishop",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8174094/bishop-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8174094.jpg"
+      },
+      {
+        "id": "5084647",
+        "order": 88,
+        "title": "Generation X-23 #6",
+        "series": "Generation X-23",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5084647/generation-x-23-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5084647.jpg"
+      },
+      {
+        "id": "2001211",
+        "order": 89,
+        "title": "Uncanny X-Men #33",
+        "series": "Uncanny X-Men",
+        "issue": "33",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2001211/uncanny-x-men-33",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2001211.jpg"
+      },
+      {
+        "id": "6509548",
+        "order": 90,
+        "title": "Wade Wilson: Deadpool #7",
+        "series": "Wade Wilson: Deadpool",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6509548/wade-wilson-deadpool-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6509548.jpg"
+      },
+      {
+        "id": "8635058",
+        "order": 91,
+        "title": "X-Men #35",
+        "series": "X-Men",
+        "issue": "35",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8635058/x-men-35",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8635058.jpg"
+      },
+      {
+        "id": "1625987",
+        "order": 92,
+        "title": "Generation X-23 #7",
+        "series": "Generation X-23",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1625987/generation-x-23-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1625987.jpg"
+      },
+      {
+        "id": "9512666",
+        "order": 93,
+        "title": "X-Men United #6",
+        "series": "X-Men United",
+        "issue": "6",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9512666/x-men-united-6",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9512666.jpg"
+      },
+      {
+        "id": "6201148",
+        "order": 94,
+        "title": "Wolverine #25",
+        "series": "Wolverine",
+        "issue": "25",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6201148/wolverine-25",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6201148.jpg"
+      },
+      {
+        "id": "1827785",
+        "order": 95,
+        "title": "Bishop #3",
+        "series": "Bishop",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1827785/bishop-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1827785.jpg"
+      },
+      {
+        "id": "9456879",
+        "order": 96,
+        "title": "Inglorious X-Force #8",
+        "series": "Inglorious X-Force",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9456879/inglorious-x-force-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9456879.jpg"
+      },
+      {
+        "id": "6451155",
+        "order": 97,
+        "title": "Uncanny X-Men #34",
+        "series": "Uncanny X-Men",
+        "issue": "34",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6451155/uncanny-x-men-34",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6451155.jpg"
+      },
+      {
+        "id": "1398060",
+        "order": 98,
+        "title": "X-Men #36",
+        "series": "X-Men",
+        "issue": "36",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1398060/x-men-36",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1398060.jpg"
+      },
+      {
+        "id": "2591013",
+        "order": 99,
+        "title": "Wolverine #26",
+        "series": "Wolverine",
+        "issue": "26",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2591013/wolverine-26",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2591013.jpg"
+      },
+      {
+        "id": "1590181",
+        "order": 100,
+        "title": "Tomb of Apocalypse #1",
+        "series": "Tomb of Apocalypse",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1590181/tomb-of-apocalypse-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1590181.jpg"
+      },
+      {
+        "id": "8023607",
+        "order": 101,
+        "title": "Wade Wilson: Deadpool #8",
+        "series": "Wade Wilson: Deadpool",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8023607/wade-wilson-deadpool-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8023607.jpg"
+      },
+      {
+        "id": "5831996",
+        "order": 102,
+        "title": "DNX #1",
+        "series": "DNX",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5831996/dnx-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5831996.jpg"
+      },
+      {
+        "id": "9346887",
+        "order": 103,
+        "title": "Punisher #8",
+        "series": "Punisher",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9346887/punisher-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9346887.jpg"
+      },
+      {
+        "id": "2492843",
+        "order": 104,
+        "title": "X-Men #37",
+        "series": "X-Men",
+        "issue": "37",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2492843/x-men-37",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2492843.jpg"
+      },
+      {
+        "id": "7200285",
+        "order": 105,
+        "title": "Inglorious X-Force #9",
+        "series": "Inglorious X-Force",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7200285/inglorious-x-force-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7200285.jpg"
+      },
+      {
+        "id": "7691445",
+        "order": 106,
+        "title": "Wolverine #27",
+        "series": "Wolverine",
+        "issue": "27",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7691445/wolverine-27",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7691445.jpg"
+      },
+      {
+        "id": "9684205",
+        "order": 107,
+        "title": "Uncanny X-Men #35",
+        "series": "Uncanny X-Men",
+        "issue": "35",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9684205/uncanny-x-men-35",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9684205.jpg"
+      },
+      {
+        "id": "4068159",
+        "order": 108,
+        "title": "DNX #2",
+        "series": "DNX",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4068159/dnx-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4068159.jpg"
+      },
+      {
+        "id": "4695805",
+        "order": 109,
+        "title": "X-Men #38",
+        "series": "X-Men",
+        "issue": "38",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4695805/x-men-38",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4695805.jpg"
+      },
+      {
+        "id": "1931646",
+        "order": 110,
+        "title": "Bishop #4",
+        "series": "Bishop",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1931646/bishop-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1931646.jpg"
+      },
+      {
+        "id": "2155057",
+        "order": 111,
+        "title": "Generation X-23 #8",
+        "series": "Generation X-23",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2155057/generation-x-23-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2155057.jpg"
+      },
+      {
+        "id": "6220431",
+        "order": 112,
+        "title": "Wolverine #28",
+        "series": "Wolverine",
+        "issue": "28",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6220431/wolverine-28",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6220431.jpg"
+      },
+      {
+        "id": "4857766",
+        "order": 113,
+        "title": "Uncanny X-Men #36",
+        "series": "Uncanny X-Men",
+        "issue": "36",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4857766/uncanny-x-men-36",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4857766.jpg"
+      },
+      {
+        "id": "3507038",
+        "order": 114,
+        "title": "X-Men United #7",
+        "series": "X-Men United",
+        "issue": "7",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3507038/x-men-united-7",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3507038.jpg"
+      },
+      {
+        "id": "4586485",
+        "order": 115,
+        "title": "Tomb of Apocalypse #2",
+        "series": "Tomb of Apocalypse",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4586485/tomb-of-apocalypse-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4586485.jpg"
+      },
+      {
+        "id": "2384942",
+        "order": 116,
+        "title": "Fantastic Four #17",
+        "series": "Fantastic Four",
+        "issue": "17",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2384942/fantastic-four-17",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2384942.jpg"
+      },
+      {
+        "id": "5908411",
+        "order": 117,
+        "title": "X-Men #39",
+        "series": "X-Men",
+        "issue": "39",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5908411/x-men-39",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5908411.jpg"
+      },
+      {
+        "id": "3914413",
+        "order": 118,
+        "title": "DNX #3",
+        "series": "DNX",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3914413/dnx-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3914413.jpg"
+      },
+      {
+        "id": "8204850",
+        "order": 119,
+        "title": "Generation X-23 #9",
+        "series": "Generation X-23",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8204850/generation-x-23-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8204850.jpg"
+      },
+      {
+        "id": "1855511",
+        "order": 120,
+        "title": "Wade Wilson: Deadpool #9",
+        "series": "Wade Wilson: Deadpool",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1855511/wade-wilson-deadpool-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1855511.jpg"
+      },
+      {
+        "id": "9656334",
+        "order": 121,
+        "title": "Uncanny X-Men #37",
+        "series": "Uncanny X-Men",
+        "issue": "37",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9656334/uncanny-x-men-37",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9656334.jpg"
+      },
+      {
+        "id": "2356133",
+        "order": 122,
+        "title": "X-Men United #8",
+        "series": "X-Men United",
+        "issue": "8",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2356133/x-men-united-8",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2356133.jpg"
+      },
+      {
+        "id": "6765692",
+        "order": 123,
+        "title": "Inglorious X-Force #10",
+        "series": "Inglorious X-Force",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6765692/inglorious-x-force-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6765692.jpg"
+      },
+      {
+        "id": "2946961",
+        "order": 124,
+        "title": "Punisher #9",
+        "series": "Punisher",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2946961/punisher-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2946961.jpg"
+      },
+      {
+        "id": "6902421",
+        "order": 125,
+        "title": "X-Men #40",
+        "series": "X-Men",
+        "issue": "40",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/6902421/x-men-40",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-6902421.jpg"
+      },
+      {
+        "id": "9155539",
+        "order": 126,
+        "title": "Fantastic Four #18",
+        "series": "Fantastic Four",
+        "issue": "18",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9155539/fantastic-four-18",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9155539.jpg"
+      },
+      {
+        "id": "7688638",
+        "order": 127,
+        "title": "Bishop #5",
+        "series": "Bishop",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7688638/bishop-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7688638.jpg"
+      },
+      {
+        "id": "7163583",
+        "order": 128,
+        "title": "Tomb of Apocalypse #3",
+        "series": "Tomb of Apocalypse",
+        "issue": "3",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7163583/tomb-of-apocalypse-3",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7163583.jpg"
+      },
+      {
+        "id": "5462166",
+        "order": 129,
+        "title": "Uncanny X-Men #38",
+        "series": "Uncanny X-Men",
+        "issue": "38",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5462166/uncanny-x-men-38",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5462166.jpg"
+      },
+      {
+        "id": "5934827",
+        "order": 130,
+        "title": "Wolverine #29",
+        "series": "Wolverine",
+        "issue": "29",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5934827/wolverine-29",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5934827.jpg"
+      },
+      {
+        "id": "5539232",
+        "order": 131,
+        "title": "DNX #4",
+        "series": "DNX",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5539232/dnx-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5539232.jpg"
+      },
+      {
+        "id": "2017409",
+        "order": 132,
+        "title": "X-Men #41",
+        "series": "X-Men",
+        "issue": "41",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2017409/x-men-41",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2017409.jpg"
+      },
+      {
+        "id": "2646413",
+        "order": 133,
+        "title": "X-Men United #9",
+        "series": "X-Men United",
+        "issue": "9",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2646413/x-men-united-9",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2646413.jpg"
+      },
+      {
+        "id": "4455481",
+        "order": 134,
+        "title": "Generation X-23 #10",
+        "series": "Generation X-23",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/4455481/generation-x-23-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-4455481.jpg"
+      },
+      {
+        "id": "8200918",
+        "order": 135,
+        "title": "Wade Wilson: Deadpool #10",
+        "series": "Wade Wilson: Deadpool",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8200918/wade-wilson-deadpool-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8200918.jpg"
+      },
+      {
+        "id": "8799545",
+        "order": 136,
+        "title": "DNX #5",
+        "series": "DNX",
+        "issue": "5",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8799545/dnx-5",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8799545.jpg"
+      },
+      {
+        "id": "9049809",
+        "order": 137,
+        "title": "Tomb of Apocalypse #4",
+        "series": "Tomb of Apocalypse",
+        "issue": "4",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9049809/tomb-of-apocalypse-4",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9049809.jpg"
+      },
+      {
+        "id": "8823673",
+        "order": 138,
+        "title": "X-Orcists #1",
+        "series": "X-Orcists",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8823673/x-orcists-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8823673.jpg"
+      },
+      {
+        "id": "5395298",
+        "order": 139,
+        "title": "Uncanny X-Men #39",
+        "series": "Uncanny X-Men",
+        "issue": "39",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/5395298/uncanny-x-men-39",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-5395298.jpg"
+      },
+      {
+        "id": "8251322",
+        "order": 140,
+        "title": "Jean Grey #1",
+        "series": "Jean Grey",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/8251322/jean-grey-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-8251322.jpg"
+      },
+      {
+        "id": "2880259",
+        "order": 141,
+        "title": "X-Men United #10",
+        "series": "X-Men United",
+        "issue": "10",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/2880259/x-men-united-10",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-2880259.jpg"
+      },
+      {
+        "id": "7593441",
+        "order": 142,
+        "title": "Wolverine #30",
+        "series": "Wolverine",
+        "issue": "30",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/7593441/wolverine-30",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-7593441.jpg"
+      },
+      {
+        "id": "3912466",
+        "order": 143,
+        "title": "Maximum X-Men #1",
+        "series": "Maximum X-Men",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/3912466/maximum-x-men-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-3912466.jpg"
+      },
+      {
+        "id": "1414160",
+        "order": 144,
+        "title": "Fugitive X-Force #1",
+        "series": "Fugitive X-Force",
+        "issue": "1",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/1414160/fugitive-x-force-1",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-1414160.jpg"
+      },
+      {
+        "id": "9810801",
+        "order": 145,
+        "title": "X-Orcists #2",
+        "series": "X-Orcists",
+        "issue": "2",
+        "publisher": "Marvel Comics",
+        "date": "",
+        "href": "https://leagueofcomicgeeks.com/comic/9810801/x-orcists-2",
+        "img": "https://s3.amazonaws.com/comicgeeks/comics/covers/medium-9810801.jpg"
+      }
+    ],
+    "label": "Shadows of Tomorrow (2026\u2013Present)"
+  }
+];
+/* === END LIST DATA === */
+
+(function main(){
+  if (!Array.isArray(ALL_LISTS) || ALL_LISTS.length === 0) {
+    alert("No lists found in ALL_LISTS. Run the scraper to populate data.");
+    return;
+  }
+
+  // ---- Global state (keyed by comic ID, shared across all tabs) ----
+  const STORAGE_KEY = 'readingState:v1';
+
+  function migrateState() {
+    if (localStorage.getItem(STORAGE_KEY)) return;
+    const merged = { items: {} };
+    for (const list of ALL_LISTS) {
+      const old = JSON.parse(localStorage.getItem(`readingState:${list.listId}:v1`) || 'null');
+      if (old?.items) Object.assign(merged.items, old.items);
+    }
+    if (Object.keys(merged.items).length > 0)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    for (const list of ALL_LISTS)
+      localStorage.removeItem(`readingState:${list.listId}:v1`);
+  }
+
+  function loadState() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { items:{} }; }
+    catch { return { items:{} }; }
+  }
+  function saveState(state) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  migrateState();
+  const state = loadState();
+
+  // ---- Tab state ----
+  let activeListId = localStorage.getItem('activeTab') || ALL_LISTS[0].listId;
+  if (!ALL_LISTS.find(l => l.listId === activeListId)) activeListId = ALL_LISTS[0].listId;
+
+  // ---- Multi-select state ----
+  let rangeStartCheckbox = null;
+  let isRangeSelectionActive = false;
+
+  // ---- Tab rendering ----
+  function renderTabs() {
+    const bar = document.getElementById('tabBar');
+    bar.innerHTML = '';
+    if (ALL_LISTS.length <= 1) { bar.style.display = 'none'; return; }
+    bar.style.display = '';
+    ALL_LISTS.forEach(list => {
+      const btn = document.createElement('button');
+      btn.className = 'tab' + (list.listId === activeListId ? ' active' : '');
+      btn.textContent = list.label;
+      btn.dataset.listId = list.listId;
+      btn.addEventListener('click', () => switchTab(list.listId));
+      bar.appendChild(btn);
+    });
+  }
+
+  function switchTab(listId) {
+    activeListId = listId;
+    localStorage.setItem('activeTab', listId);
+    renderTabs();
+    renderList(listId);
+  }
+
+  // ---- List rendering ----
+  const tbody = document.querySelector('#tbl tbody');
+
+  function renderList(listId) {
+    const list = ALL_LISTS.find(l => l.listId === listId);
+    tbody.innerHTML = '';
+    rangeStartCheckbox = null;
+    isRangeSelectionActive = false;
+    list.items.forEach((it, i) => tbody.appendChild(rowHtml(it, i)));
+  }
+
+  function rowHtml(it, index) {
+    const checked = !!state.items[it.id]?.read;
+    const icChecked = !!state.items[it.id]?.inCollection;
+    const tr = document.createElement('tr');
+    if (checked) tr.classList.add('read');
+    if (icChecked && !checked) tr.classList.add('in-collection');
+
+    // cells
+    const tdNum = document.createElement('td'); tdNum.className = 'num'; tdNum.textContent = String(index+1);
+
+    // IC (In Collection) checkbox
+    const tdIc = document.createElement('td'); tdIc.className = 'chk';
+    const icContainer = document.createElement('div');
+    icContainer.className = 'ic-checkbox';
+    if (icChecked) icContainer.classList.add('checked');
+    if (checked) icContainer.classList.add('disabled');
+    const icCb = document.createElement('input');
+    icCb.type = 'checkbox';
+    icCb.checked = icChecked;
+    if (checked) icCb.disabled = true;
+    icContainer.addEventListener('click', () => {
+      if (icCb.disabled) return;
+      icCb.checked = !icCb.checked;
+      icContainer.classList.toggle('checked', icCb.checked);
+      state.items[it.id] = state.items[it.id] || {};
+      state.items[it.id].inCollection = icCb.checked;
+      saveState(state);
+      tr.classList.toggle('in-collection', icCb.checked);
+    });
+    icContainer.appendChild(icCb);
+    tdIc.appendChild(icContainer);
+
+    const tdChk = document.createElement('td'); tdChk.className = 'chk';
+    const checkboxContainer = document.createElement('div');
+    checkboxContainer.className = 'custom-checkbox';
+    if (checked) checkboxContainer.classList.add('checked');
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = checked;
+
+    const handleChange = () => {
+      // Uncheck confirmation flow
+      if (!cb.checked) {
+        const label = buildIssueLabel(it);
+        const ok = confirm(
+`Unmark as unread?
+
+${label}
+
+This action is unusual. Do you want to proceed?`);
+        if (!ok) { cb.checked = true; return; }
+      }
+      const now = Date.now();
+      state.items[it.id] = state.items[it.id] || {};
+      state.items[it.id].read = cb.checked;
+      state.items[it.id].ts = now;
+      saveState(state);
+      tr.classList.toggle('read', cb.checked);
+      checkboxContainer.classList.toggle('checked', cb.checked);
+      if (cb.checked) {
+        icCb.disabled = true;
+        icContainer.classList.add('disabled');
+        tr.classList.remove('in-collection');
+      } else {
+        icCb.disabled = false;
+        icContainer.classList.remove('disabled');
+        tr.classList.toggle('in-collection', !!state.items[it.id]?.inCollection);
+      }
+    };
+    
+    cb.addEventListener('change', handleChange);
+    
+    // Make the entire custom checkbox clickable with multi-select support
+    checkboxContainer.addEventListener('click', (e) => {
+      e.preventDefault();
+      
+      if (e.shiftKey) {
+        if (!isRangeSelectionActive) {
+          // First shift+click: start range selection (don't change state yet)
+          rangeStartCheckbox = cb;
+          isRangeSelectionActive = true;
+          
+          // Add visual indicator for range start
+          tr.classList.add('range-start');
+          return;
+        } else if (rangeStartCheckbox && rangeStartCheckbox !== cb) {
+          // Second shift+click: complete range selection
+          const allRows = [...tbody.querySelectorAll('tr')];
+          const startRow = allRows.find(row => row.querySelector('input[type="checkbox"]') === rangeStartCheckbox);
+          const endRow = tr;
+          
+          if (startRow && endRow) {
+            const startIndex = Math.min(allRows.indexOf(startRow), allRows.indexOf(endRow));
+            const endIndex = Math.max(allRows.indexOf(startRow), allRows.indexOf(endRow));
+            
+            // Determine target state based on range start checkbox
+            const targetState = !rangeStartCheckbox.checked;
+            
+            // Debug logging
+            console.log('Multi-select debug:', {
+              rangeStartChecked: rangeStartCheckbox.checked,
+              targetState: targetState,
+              willUncheck: targetState === false
+            });
+            
+            // Check if any unchecking will happen
+            const willUncheck = targetState === false;
+            let uncheckItems = [];
+            
+            if (willUncheck) {
+              // Collect items that will be unchecked for warning
+              for (let i = startIndex; i <= endIndex; i++) {
+                const row = allRows[i];
+                const rowCb = row.querySelector('input[type="checkbox"]');
+                if (rowCb && rowCb.checked) {
+                  const itemId = row.dataset.itemId;
+                  const item = items.find(item => item.id === itemId);
+                  if (item) {
+                    uncheckItems.push(buildIssueLabel(item));
+                  }
+                }
+              }
+            }
+            
+            // Show warning if unchecking multiple items
+            if (willUncheck && uncheckItems.length > 1) {
+              const ok = confirm(
+`Unmark ${uncheckItems.length} comics as unread?
+
+This will affect:
+${uncheckItems.slice(0, 5).join('\n')}${uncheckItems.length > 5 ? '\n...and ' + (uncheckItems.length - 5) + ' more' : ''}
+
+This action is unusual. Do you want to proceed?`);
+              if (!ok) {
+                // Reset range selection
+                isRangeSelectionActive = false;
+                rangeStartCheckbox = null;
+                return;
+              }
+            }
+            
+            // Apply the change to all items in range
+            for (let i = startIndex; i <= endIndex; i++) {
+              const row = allRows[i];
+              const rowCb = row.querySelector('input[type="checkbox"]');
+              const rowContainer = row.querySelector('.custom-checkbox');
+              if (rowCb && rowContainer) {
+                rowCb.checked = targetState;
+                row.classList.toggle('read', targetState);
+                rowContainer.classList.toggle('checked', targetState);
+                
+                // Update state for each item
+                const itemId = row.dataset.itemId;
+                if (itemId) {
+                  const now = Date.now();
+                  state.items[itemId] = state.items[itemId] || {};
+                  state.items[itemId].read = targetState;
+                  state.items[itemId].ts = now;
+                }
+              }
+            }
+            
+            // Save state after batch update
+            saveState(state);
+          }
+          
+          // Reset range selection
+          isRangeSelectionActive = false;
+          rangeStartCheckbox = null;
+          
+          // Remove visual indicator from all rows
+          [...tbody.querySelectorAll('tr.range-start')].forEach(row => {
+            row.classList.remove('range-start');
+          });
+        }
+      } else {
+        // Single checkbox toggle (no shift)
+        if (cb.checked) {
+          // Unchecking: show warning immediately
+          const label = buildIssueLabel(it);
+          const ok = confirm(
+`Unmark as unread?
+
+${label}
+
+This action is unusual. Do you want to proceed?`);
+          if (!ok) return;
+        }
+        
+        // Apply the change
+        cb.checked = !cb.checked;
+        handleChange();
+        
+        // Reset range selection if not using shift
+        isRangeSelectionActive = false;
+        rangeStartCheckbox = null;
+        
+        // Remove visual indicator from all rows
+        [...tbody.querySelectorAll('tr.range-start')].forEach(row => {
+          row.classList.remove('range-start');
+        });
+      }
+    });
+    
+    checkboxContainer.appendChild(cb);
+    tdChk.appendChild(checkboxContainer);
+
+    const tdCover = document.createElement('td'); tdCover.className = 'cover';
+    if (it.img) {
+      const img = document.createElement('img');
+      img.src = it.img; img.alt = (it.title || 'cover');
+      tdCover.appendChild(img);
+    }
+
+    const tdTitle = document.createElement('td');
+    tdTitle.innerHTML = `<strong>${esc(it.title || '')}</strong>` +
+      (it.series && it.issue ? `<div class="note">${esc(it.series)} #${esc(it.issue)}</div>` : '');
+
+    const tdPub = document.createElement('td'); tdPub.textContent = it.publisher || '';
+    const tdDate = document.createElement('td'); tdDate.textContent = it.date || '';
+
+    const tdLink = document.createElement('td');
+    if (it.href) {
+      const a = document.createElement('a'); a.href = it.href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.textContent = 'Issue';
+      tdLink.appendChild(a);
+    }
+
+    tr.append(tdNum, tdIc, tdChk, tdCover, tdTitle, tdPub, tdDate, tdLink);
+    tr.dataset.itemId = it.id;
+    return tr;
+  }
+
+  renderTabs();
+  renderList(activeListId);
+
+  // ---- Back-to-top button (only when 2+ tabs exist) ----
+  if (ALL_LISTS.length > 1) {
+    const backBtn = document.getElementById('backToTopBtn');
+    backBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+    new IntersectionObserver(
+      ([entry]) => { backBtn.style.display = entry.isIntersecting ? 'none' : 'block'; },
+      { threshold: 0 }
+    ).observe(document.getElementById('tabBar'));
+  }
+
+  // ---- Toolbar actions ----
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), { href: url, download: 'x-men-reading-state.json' });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  });
+
+  document.getElementById('importFile').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    try {
+      const text = await file.text();
+      const incoming = JSON.parse(text);
+      if (!incoming || typeof incoming !== 'object' || !incoming.items) throw new Error('Invalid state file.');
+      state.items = { ...state.items, ...incoming.items };
+      saveState(state);
+      renderList(activeListId);
+      alert('State imported.');
+    } catch (err) {
+      alert('Failed to import: ' + (err?.message || err));
+    } finally {
+      e.target.value = '';
+    }
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    const ok = confirm('This will clear read progress for ALL tabs. Continue?');
+    if (!ok) return;
+    localStorage.removeItem(STORAGE_KEY);
+    Object.keys(state.items).forEach(k => delete state.items[k]);
+    renderList(activeListId);
+  });
+
+  document.getElementById('skipToNextBtn').addEventListener('click', () => {
+    const firstUnreadRow = [...tbody.querySelectorAll('tr')].find(tr => !tr.classList.contains('read'));
+    if (firstUnreadRow) {
+      firstUnreadRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      firstUnreadRow.style.backgroundColor = '#fff3cd';
+      setTimeout(() => { firstUnreadRow.style.backgroundColor = ''; }, 2000);
+    } else {
+      alert('All comics in this tab are marked as read!');
+    }
+  });
+
+  // ---- Utils ----
+  function esc(s='') {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  function buildIssueLabel(it) {
+    const parts = [];
+    if (it.series) parts.push(it.series);
+    if (it.issue) parts.push(`#${it.issue}`);
+    const label = parts.length ? parts.join(' ') : (it.title || 'This comic');
+    const meta = [];
+    if (it.publisher) meta.push(it.publisher);
+    if (it.date) meta.push(it.date);
+    return meta.length ? `${label} — ${meta.join(' • ')}` : label;
+  }
+})();
+</script>
 </body>
 </html>

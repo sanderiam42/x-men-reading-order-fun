@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "algo": "AES-256-GCM + PBKDF2(SHA-256, iterations=210k)",
-  "files": [
-    "html.enc",
-    "data.enc.json"
-  ]
-}
